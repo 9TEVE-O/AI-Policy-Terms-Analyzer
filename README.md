@@ -105,7 +105,7 @@ Technologies Detected:
   Platforms:
     - aws
     - github
-  Ai_ml:
+  Ai_Ml:
     - openai
     - chatgpt
   Services:

@@ -151,9 +151,12 @@ def interactive_mode():
         safe_name = re.sub(r'[^\w\s-]', '', company).strip()
         safe_name = re.sub(r'[-\s]+', '_', safe_name)
         filename = f"{safe_name}_analysis.json"
-        with open(filename, 'w') as f:
-            json.dump(results, f, indent=2)
-        print(f"✅ Results saved to: {filename}")
+        try:
+            with open(filename, 'w') as f:
+                json.dump(results, f, indent=2)
+            print(f"✅ Results saved to: {filename}")
+        except (PermissionError, OSError, IOError) as e:
+            print(f"❌ Could not save results to '{filename}': {e}")
 
 
 def show_next_steps():

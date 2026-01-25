@@ -246,7 +246,7 @@ This implementation provides a complete, production-ready solution for analyzing
 - **Well documented** with guides for all levels
 - **Extensible** for future enhancements
 
-The tool successfully solves the original problem: enabling users to automatically extract valuable tech stack information from companies' public legal documents, making it possible to "get more data analysis sitting on the toilet than someone flicking through the Yellow Pages!"
+The tool successfully solves the original problem: enabling users to automatically extract valuable tech stack information from companies' public legal documents, making it possible to "get more data analysis sitting on the toilet than someone flipping through the Yellow Pages!"
 
 ---
 

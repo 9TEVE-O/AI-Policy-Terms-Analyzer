@@ -13,7 +13,7 @@ to extract technical information including:
 
 import re
 import json
-from typing import Dict, List, Set
+from typing import Dict, List
 from collections import defaultdict
 
 
@@ -46,34 +46,35 @@ class PolicyAnalyzer:
     
     def extract_domains(self, text: str) -> List[str]:
         """Extract domain names from text."""
-        # Pattern for domain names
+        # Pattern for domain names - requires alphabetic TLD and minimum length
         domain_pattern = r'\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b'
         domains = re.findall(domain_pattern, text)
+        # Filter out likely version numbers (e.g., v1.2, 3.14)
+        filtered_domains = [d for d in domains if not re.match(r'^[v]?\d+\.\d+', d, re.IGNORECASE)]
         # Return unique domains
-        return list(set(domains))
+        return list(set(filtered_domains))
     
     def extract_emails(self, text: str) -> List[str]:
         """Extract email addresses from text."""
-        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
         emails = re.findall(email_pattern, text)
         return list(set(emails))
     
     def detect_technologies(self, text: str) -> Dict[str, List[str]]:
         """Detect mentioned technologies by category."""
         text_lower = text.lower()
-        found_tech = defaultdict(list)
+        found_tech = defaultdict(set)
         
         for category, keywords in self.tech_keywords.items():
             for keyword in keywords:
-                if keyword.lower() in text_lower:
-                    found_tech[category].append(keyword)
+                if keyword in text_lower:
+                    found_tech[category].add(keyword)
         
-        return dict(found_tech)
+        return {category: list(keywords) for category, keywords in found_tech.items()}
     
     def extract_api_references(self, text: str) -> List[str]:
         """Extract API-related references."""
         api_pattern = r'\b(?:API|api|REST|GraphQL|webhook|endpoint)s?\b'
-        api_mentions = re.findall(api_pattern, text)
         
         # Look for specific API mentions
         api_contexts = []
@@ -88,7 +89,6 @@ class PolicyAnalyzer:
     def extract_third_party_services(self, text: str) -> List[str]:
         """Extract third-party service mentions."""
         services = []
-        text_lower = text.lower()
         
         # Common service patterns
         service_patterns = [
@@ -106,7 +106,7 @@ class PolicyAnalyzer:
     def detect_data_sharing(self, text: str) -> List[str]:
         """Detect data sharing and integration mentions."""
         sharing_patterns = [
-            r'(?:share|transfer|disclose|provide).*?(?:data|information).*?(?:with|to)\s+([^\n.]+)',
+            r'(?:share|transfer|disclose|provide)[\s\S]{0,200}?(?:data|information)[\s\S]{0,200}?(?:with|to)\s+([^\n.]+)',
             r'(?:integrate|integration|connected|connection)\s+(?:with|to)\s+([^\n.]+)'
         ]
         
@@ -263,10 +263,16 @@ def main():
         # Optionally save as JSON
         save = input("\nSave results as JSON? (y/n): ").strip().lower()
         if save == 'y':
-            filename = f"{company.replace(' ', '_')}_analysis.json"
-            with open(filename, 'w') as f:
-                json.dump(results, f, indent=2)
-            print(f"Results saved to {filename}")
+            # Sanitize filename - remove unsafe characters
+            safe_name = re.sub(r'[^\w\s-]', '', company).strip()
+            safe_name = re.sub(r'[-\s]+', '_', safe_name)
+            filename = f"{safe_name}_analysis.json"
+            try:
+                with open(filename, 'w') as f:
+                    json.dump(results, f, indent=2)
+                print(f"Results saved to {filename}")
+            except (PermissionError, OSError, IOError) as e:
+                print(f"Could not save results to '{filename}': {e}")
     
     except KeyboardInterrupt:
         print("\n\nAnalysis cancelled.")

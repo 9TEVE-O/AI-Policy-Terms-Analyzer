@@ -16,8 +16,12 @@ def save_results(results, output_dir='analysis_results'):
     """Save all results to JSON files in a directory."""
     import re
     
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    try:
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+    except OSError as e:
+        print(f"❌ Could not create directory '{output_dir}': {e}")
+        return None
     
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     
@@ -26,14 +30,20 @@ def save_results(results, output_dir='analysis_results'):
         # Sanitize filename - remove unsafe characters
         safe_name = re.sub(r'[^\w\s-]', '', company).strip()
         safe_name = re.sub(r'[-\s]+', '_', safe_name)
-        filename = f"{output_dir}/{safe_name}_{timestamp}.json"
-        with open(filename, 'w') as f:
-            json.dump(data, f, indent=2)
+        filename = os.path.join(output_dir, f"{safe_name}_{timestamp}.json")
+        try:
+            with open(filename, 'w') as f:
+                json.dump(data, f, indent=2)
+        except (PermissionError, OSError, IOError) as e:
+            print(f"❌ Could not save '{filename}': {e}")
     
     # Save combined summary
-    summary_file = f"{output_dir}/summary_{timestamp}.json"
-    with open(summary_file, 'w') as f:
-        json.dump(results, f, indent=2)
+    summary_file = os.path.join(output_dir, f"summary_{timestamp}.json")
+    try:
+        with open(summary_file, 'w') as f:
+            json.dump(results, f, indent=2)
+    except (PermissionError, OSError, IOError) as e:
+        print(f"❌ Could not save summary file: {e}")
     
     print(f"✅ Saved results to {output_dir}/")
     return output_dir
@@ -41,6 +51,10 @@ def save_results(results, output_dir='analysis_results'):
 
 def create_comparison_report(results):
     """Create a side-by-side comparison of companies."""
+    if not results:
+        print("\n❌ No results to compare. Please analyze some companies first.")
+        return
+    
     print("\n" + "=" * 100)
     print(" " * 35 + "COMPARISON REPORT")
     print("=" * 100)
