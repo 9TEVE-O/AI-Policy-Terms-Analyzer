@@ -49,9 +49,8 @@ class PolicyAnalyzer:
         # Pattern for domain names
         domain_pattern = r'\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b'
         domains = re.findall(domain_pattern, text)
-        # Filter out common words that might match
-        filtered = [d for d in domains if not d.endswith('.com') or len(d) > 7]
-        return list(set(filtered))
+        # Return unique domains
+        return list(set(domains))
     
     def extract_emails(self, text: str) -> List[str]:
         """Extract email addresses from text."""
@@ -129,9 +128,11 @@ class PolicyAnalyzer:
         Returns:
             Dictionary containing all extracted information
         """
+        from datetime import datetime
+        
         analysis = {
             'company_name': company_name,
-            'analysis_date': None,  # Could add timestamp
+            'analysis_date': datetime.now().isoformat(),
             'urls_found': self.extract_urls(policy_text),
             'domains_found': self.extract_domains(policy_text),
             'emails_found': self.extract_emails(policy_text),

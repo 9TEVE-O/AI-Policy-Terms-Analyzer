@@ -30,8 +30,9 @@ Imagine you want to know what technology a company uses, but don't want to read 
 
 2. **Navigate to the folder**
    ```bash
-   cd path/to/Ai-
+   cd /path/to/Ai-
    ```
+   (Replace `/path/to/Ai-` with the actual path where you downloaded this repository)
 
 3. **Run the quick start**
    ```bash

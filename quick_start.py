@@ -146,7 +146,11 @@ def interactive_mode():
     save = input("\n💾 Save results to JSON file? (y/n): ").strip().lower()
     if save == 'y':
         import json
-        filename = f"{company.replace(' ', '_').replace('/', '_')}_analysis.json"
+        import re
+        # Sanitize filename - remove unsafe characters
+        safe_name = re.sub(r'[^\w\s-]', '', company).strip()
+        safe_name = re.sub(r'[-\s]+', '_', safe_name)
+        filename = f"{safe_name}_analysis.json"
         with open(filename, 'w') as f:
             json.dump(results, f, indent=2)
         print(f"✅ Results saved to: {filename}")

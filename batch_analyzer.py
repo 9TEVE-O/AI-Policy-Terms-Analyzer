@@ -14,6 +14,8 @@ from datetime import datetime
 
 def save_results(results, output_dir='analysis_results'):
     """Save all results to JSON files in a directory."""
+    import re
+    
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     
@@ -21,7 +23,10 @@ def save_results(results, output_dir='analysis_results'):
     
     # Save individual company files
     for company, data in results.items():
-        filename = f"{output_dir}/{company.replace(' ', '_')}_{timestamp}.json"
+        # Sanitize filename - remove unsafe characters
+        safe_name = re.sub(r'[^\w\s-]', '', company).strip()
+        safe_name = re.sub(r'[-\s]+', '_', safe_name)
+        filename = f"{output_dir}/{safe_name}_{timestamp}.json"
         with open(filename, 'w') as f:
             json.dump(data, f, indent=2)
     
