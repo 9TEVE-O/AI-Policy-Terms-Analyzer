@@ -1,0 +1,7 @@
+# Python requirements for Policy Analyzer Assistant
+# No external dependencies required - uses only Python standard library
+# 
+# Optional dependencies for enhanced functionality:
+# beautifulsoup4>=4.12.0  # For HTML parsing if analyzing web pages
+# requests>=2.31.0         # For fetching policies from URLs
+# pdfplumber>=0.10.0      # For extracting text from PDF policies
