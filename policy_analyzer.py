@@ -23,7 +23,7 @@ class PolicyAnalyzer:
     def __init__(self):
         # Common tech keywords and patterns
         self.tech_keywords = {
-            'platforms': ['github', 'gitlab', 'bitbucket', 'aws', 'azure', 'gcp', 'google cloud',
+            'platforms': ['github', 'gitlab', 'bitbucket', 'aws', 'azure',
                          'heroku', 'netlify', 'vercel', 'cloudflare', 'firebase'],
             'languages': ['python', 'javascript', 'java', 'ruby', 'php', 'go', 'rust', 
                          'typescript', 'c++', 'c#', 'swift', 'kotlin'],
@@ -35,17 +35,32 @@ class PolicyAnalyzer:
                         'intercom', 'segment', 'analytics', 'google analytics', 'mixpanel'],
             'ai_ml': ['openai', 'chatgpt', 'gpt', 'claude', 'gemini', 'machine learning',
                      'artificial intelligence', 'neural network', 'deep learning', 'nlp'],
-            'bots': ['chatbot', 'bot', 'automated system', 'automation', 'crawler', 'spider'],
-            'google_cloud': ['google cloud platform', 'gcp', 'google cloud', 'cloud functions',
-                           'cloud run', 'cloud storage', 'bigquery', 'cloud sql', 'app engine',
-                           'compute engine', 'kubernetes engine', 'gke', 'cloud vision',
-                           'cloud speech', 'cloud translation', 'cloud natural language',
-                           'vertex ai', 'cloud firestore', 'cloud pubsub', 'cloud dataflow',
-                           'cloud composer', 'cloud build', 'artifact registry',
-                           'google cloud developer', 'google cloud innovator', 
-                           'gcp developer', 'gcp innovator', 'cloud developer',
-                           'cloud innovator', 'google developer', 'google innovator']
+            'bots': ['chatbot', 'bot', 'automated system', 'automation', 'crawler', 'spider']
         }
+        
+        # Google Cloud Platform specific keywords (organized by category)
+        self.gcp_services = [
+            'google cloud platform', 'gcp', 'google cloud',
+            'cloud functions', 'cloud run', 'cloud storage', 'bigquery', 'cloud sql',
+            'app engine', 'compute engine', 'kubernetes engine', 'gke', 'cloud vision',
+            'cloud speech', 'cloud translation', 'cloud natural language', 'vertex ai',
+            'cloud firestore', 'cloud pubsub', 'cloud dataflow', 'cloud composer',
+            'cloud build', 'artifact registry', 'cloud cdn', 'cloud dns', 'cloud armor',
+            'cloud load balancing', 'cloud iam', 'cloud logging', 'cloud monitoring',
+            'cloud trace', 'cloud profiler', 'cloud debugger'
+        ]
+        
+        self.gcp_programs = [
+            'google cloud developer', 'google cloud innovator', 'gcp developer',
+            'gcp innovator', 'cloud developer program', 'cloud innovator program',
+            'google developer program', 'google innovator program'
+        ]
+        
+        self.gcp_cert_patterns = [
+            r'google cloud\s+(?:certified\s+)?(?:professional|associate)?\s*(?:cloud\s+)?(?:architect|developer|engineer|data\s+engineer)',
+            r'gcp\s+(?:certified\s+)?(?:professional|associate)?\s*(?:architect|developer|engineer)',
+            r'google\s+(?:certified\s+)?(?:professional|associate)?\s*cloud'
+        ]
     
     def extract_urls(self, text: str) -> List[str]:
         """Extract all URLs from the text."""
@@ -144,41 +159,25 @@ class PolicyAnalyzer:
             'certifications': []
         }
         
-        # Google Cloud services
-        services = [
-            'cloud functions', 'cloud run', 'cloud storage', 'bigquery', 'cloud sql',
-            'app engine', 'compute engine', 'kubernetes engine', 'gke', 'cloud vision',
-            'cloud speech', 'cloud translation', 'cloud natural language', 'vertex ai',
-            'cloud firestore', 'cloud pubsub', 'cloud dataflow', 'cloud composer',
-            'cloud build', 'artifact registry', 'cloud cdn', 'cloud dns',
-            'cloud armor', 'cloud load balancing', 'cloud iam', 'cloud logging',
-            'cloud monitoring', 'cloud trace', 'cloud profiler', 'cloud debugger'
-        ]
-        
-        for service in services:
+        # Detect Google Cloud services using the predefined list
+        for service in self.gcp_services:
             if service in text_lower:
                 gcp_info['services'].append(service)
         
-        # Google Cloud programs (Developer, Innovator, etc.)
-        programs = [
-            'google cloud developer', 'google cloud innovator', 'gcp developer',
-            'gcp innovator', 'cloud developer program', 'cloud innovator program',
-            'google developer program', 'google innovator program',
-            'google cloud certified', 'gcp certified'
-        ]
-        
-        for program in programs:
+        # Detect Google Cloud programs using the predefined list
+        for program in self.gcp_programs:
             if program in text_lower:
                 gcp_info['programs'].append(program)
         
-        # Google Cloud certifications
-        cert_patterns = [
-            r'google cloud\s+(?:certified\s+)?(?:professional|associate)?\s*(?:cloud\s+)?(?:architect|developer|engineer|data\s+engineer)',
-            r'gcp\s+(?:certified\s+)?(?:professional|associate)?\s*(?:architect|developer|engineer)',
-            r'google\s+(?:certified\s+)?(?:professional|associate)?\s*cloud'
-        ]
+        # Also check for generic certification mentions
+        if 'google cloud certified' in text_lower or 'gcp certified' in text_lower:
+            if 'google cloud certified' in text_lower:
+                gcp_info['programs'].append('google cloud certified')
+            if 'gcp certified' in text_lower:
+                gcp_info['programs'].append('gcp certified')
         
-        for pattern in cert_patterns:
+        # Detect Google Cloud certifications using regex patterns
+        for pattern in self.gcp_cert_patterns:
             matches = re.findall(pattern, text, re.IGNORECASE)
             gcp_info['certifications'].extend(matches)
         
