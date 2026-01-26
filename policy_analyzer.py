@@ -35,7 +35,16 @@ class PolicyAnalyzer:
                         'intercom', 'segment', 'analytics', 'google analytics', 'mixpanel'],
             'ai_ml': ['openai', 'chatgpt', 'gpt', 'claude', 'gemini', 'machine learning',
                      'artificial intelligence', 'neural network', 'deep learning', 'nlp'],
-            'bots': ['chatbot', 'bot', 'automated system', 'automation', 'crawler', 'spider']
+            'bots': ['chatbot', 'bot', 'automated system', 'automation', 'crawler', 'spider'],
+            'google_cloud': ['google cloud platform', 'gcp', 'google cloud', 'cloud functions',
+                           'cloud run', 'cloud storage', 'bigquery', 'cloud sql', 'app engine',
+                           'compute engine', 'kubernetes engine', 'gke', 'cloud vision',
+                           'cloud speech', 'cloud translation', 'cloud natural language',
+                           'vertex ai', 'cloud firestore', 'cloud pubsub', 'cloud dataflow',
+                           'cloud composer', 'cloud build', 'artifact registry',
+                           'google cloud developer', 'google cloud innovator', 
+                           'gcp developer', 'gcp innovator', 'cloud developer',
+                           'cloud innovator', 'google developer', 'google innovator']
         }
     
     def extract_urls(self, text: str) -> List[str]:
@@ -117,6 +126,69 @@ class PolicyAnalyzer:
         
         return list(set(sharing_info))[:15]
     
+    def extract_google_cloud_info(self, text: str) -> Dict[str, List[str]]:
+        """
+        Extract detailed Google Cloud information including services, programs, and certifications.
+        
+        Args:
+            text: The text to analyze
+            
+        Returns:
+            Dictionary with categorized Google Cloud information
+        """
+        text_lower = text.lower()
+        
+        gcp_info = {
+            'services': [],
+            'programs': [],
+            'certifications': []
+        }
+        
+        # Google Cloud services
+        services = [
+            'cloud functions', 'cloud run', 'cloud storage', 'bigquery', 'cloud sql',
+            'app engine', 'compute engine', 'kubernetes engine', 'gke', 'cloud vision',
+            'cloud speech', 'cloud translation', 'cloud natural language', 'vertex ai',
+            'cloud firestore', 'cloud pubsub', 'cloud dataflow', 'cloud composer',
+            'cloud build', 'artifact registry', 'cloud cdn', 'cloud dns',
+            'cloud armor', 'cloud load balancing', 'cloud iam', 'cloud logging',
+            'cloud monitoring', 'cloud trace', 'cloud profiler', 'cloud debugger'
+        ]
+        
+        for service in services:
+            if service in text_lower:
+                gcp_info['services'].append(service)
+        
+        # Google Cloud programs (Developer, Innovator, etc.)
+        programs = [
+            'google cloud developer', 'google cloud innovator', 'gcp developer',
+            'gcp innovator', 'cloud developer program', 'cloud innovator program',
+            'google developer program', 'google innovator program',
+            'google cloud certified', 'gcp certified'
+        ]
+        
+        for program in programs:
+            if program in text_lower:
+                gcp_info['programs'].append(program)
+        
+        # Google Cloud certifications
+        cert_patterns = [
+            r'google cloud\s+(?:certified\s+)?(?:professional|associate)?\s*(?:cloud\s+)?(?:architect|developer|engineer|data\s+engineer)',
+            r'gcp\s+(?:certified\s+)?(?:professional|associate)?\s*(?:architect|developer|engineer)',
+            r'google\s+(?:certified\s+)?(?:professional|associate)?\s*cloud'
+        ]
+        
+        for pattern in cert_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            gcp_info['certifications'].extend(matches)
+        
+        # Remove duplicates and return
+        return {
+            'services': list(set(gcp_info['services'])),
+            'programs': list(set(gcp_info['programs'])),
+            'certifications': list(set(gcp_info['certifications']))
+        }
+    
     def analyze(self, policy_text: str, company_name: str = "Unknown") -> Dict:
         """
         Perform comprehensive analysis of a policy document.
@@ -137,6 +209,7 @@ class PolicyAnalyzer:
             'domains_found': self.extract_domains(policy_text),
             'emails_found': self.extract_emails(policy_text),
             'technologies_detected': self.detect_technologies(policy_text),
+            'google_cloud_info': self.extract_google_cloud_info(policy_text),
             'api_references': self.extract_api_references(policy_text),
             'third_party_services': self.extract_third_party_services(policy_text),
             'data_sharing_mentions': self.detect_data_sharing(policy_text),
@@ -177,6 +250,31 @@ class PolicyAnalyzer:
                 for tech in techs:
                     report.append(f"    - {tech}")
             report.append("")
+        
+        # Google Cloud specific information
+        if analysis.get('google_cloud_info'):
+            gcp_info = analysis['google_cloud_info']
+            has_gcp_content = any(gcp_info.values())
+            
+            if has_gcp_content:
+                report.append("Google Cloud Platform Information:")
+                
+                if gcp_info.get('services'):
+                    report.append(f"  GCP Services ({len(gcp_info['services'])}):")
+                    for service in gcp_info['services']:
+                        report.append(f"    - {service}")
+                
+                if gcp_info.get('programs'):
+                    report.append(f"  GCP Programs ({len(gcp_info['programs'])}):")
+                    for program in gcp_info['programs']:
+                        report.append(f"    - {program}")
+                
+                if gcp_info.get('certifications'):
+                    report.append(f"  GCP Certifications ({len(gcp_info['certifications'])}):")
+                    for cert in gcp_info['certifications']:
+                        report.append(f"    - {cert}")
+                
+                report.append("")
         
         # Third-party services
         if analysis['third_party_services']:
