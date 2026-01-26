@@ -44,6 +44,19 @@ print(analyzer.format_report(results))
 # Or work with the raw data
 print(f"URLs found: {results['urls_found']}")
 print(f"Technologies: {results['technologies_detected']}")
+
+# Access Google Cloud specific information
+gcp_info = results['google_cloud_info']
+print(f"GCP Services: {gcp_info['services']}")
+print(f"GCP Programs: {gcp_info['programs']}")
+print(f"GCP Certifications: {gcp_info['certifications']}")
+```
+
+### Testing Google Cloud Detection
+
+```bash
+# Run the Google Cloud detection test
+python test_google_cloud.py
 ```
 
 ## 📋 Features
@@ -59,20 +72,27 @@ Identifies mentions of:
 - Databases (MongoDB, PostgreSQL, MySQL, etc.)
 - AI/ML tools (OpenAI, ChatGPT, TensorFlow, etc.)
 
-### 3. **Service Integration Discovery**
+### 3. **Google Cloud Platform Analysis** ⭐ NEW
+Comprehensive detection of Google Cloud usage:
+- **GCP Services**: Cloud Functions, Cloud Run, BigQuery, Vertex AI, Cloud SQL, etc.
+- **Developer Programs**: Google Cloud Developer and Innovator program references
+- **Certifications**: Google Cloud Certified professionals and credentials
+- **Complete Coverage**: 30+ Google Cloud services and programs tracked
+
+### 4. **Service Integration Discovery**
 Detects third-party services like:
 - Payment processors (Stripe, PayPal)
 - Communication tools (Twilio, SendGrid)
 - Analytics platforms (Google Analytics, Mixpanel)
 - Support systems (Zendesk, Intercom)
 
-### 4. **Bot & Automation Detection**
+### 5. **Bot & Automation Detection**
 Specifically identifies chatbots, automated systems, crawlers, and AI assistants.
 
-### 5. **Data Sharing Analysis**
+### 6. **Data Sharing Analysis**
 Extracts information about how and with whom companies share data.
 
-### 6. **Multiple Output Formats**
+### 7. **Multiple Output Formats**
 - Human-readable formatted reports
 - JSON for programmatic processing
 - Batch analysis for multiple companies
