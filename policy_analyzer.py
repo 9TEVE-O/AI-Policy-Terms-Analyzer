@@ -169,13 +169,6 @@ class PolicyAnalyzer:
             if program in text_lower:
                 gcp_info['programs'].append(program)
         
-        # Also check for generic certification mentions
-        if 'google cloud certified' in text_lower or 'gcp certified' in text_lower:
-            if 'google cloud certified' in text_lower:
-                gcp_info['programs'].append('google cloud certified')
-            if 'gcp certified' in text_lower:
-                gcp_info['programs'].append('gcp certified')
-        
         # Detect Google Cloud certifications using regex patterns
         for pattern in self.gcp_cert_patterns:
             matches = re.findall(pattern, text, re.IGNORECASE)
