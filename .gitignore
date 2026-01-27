@@ -11,7 +11,7 @@ downloads/
 eggs/
 .eggs/
 lib/
-lib64/
+library64/
 parts/
 sdist/
 var/
@@ -67,6 +67,6 @@ htmlcov/
 # OS files
 Thumbs.db
 
-# Large data files (consider using Git LFS instead)
+# Large data files (tracked by Git LFS - see .gitattributes)
 # *.pdf
 # *.xlsx
