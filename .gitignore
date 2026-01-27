@@ -42,3 +42,31 @@ analysis_results/
 /tmp/
 *.tmp
 *.log
+
+# === NEW ADDITIONS ===
+
+# Credentials and secrets (CRITICAL!)
+*.env
+.env.local
+.env.*.local
+credentials.json
+service-account*.json
+*-key.json
+secrets/
+
+# Jupyter Notebooks checkpoints
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Python coverage and testing
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+
+# OS files
+Thumbs.db
+
+# Large data files (consider using Git LFS instead)
+# *.pdf
+# *.xlsx
