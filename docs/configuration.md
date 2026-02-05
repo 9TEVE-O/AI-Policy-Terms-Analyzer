@@ -595,10 +595,6 @@ When adding custom keywords, document why they're important for your use case.
 
 When new versions introduce configuration changes, this section will guide you through migration steps.
 
-## Schema Reference
-
-For a complete JSON schema of the configuration format, see [configuration-schema.json](./configuration-schema.json).
-
 ## See Also
 
 - [README.md](../README.md) - Main documentation
