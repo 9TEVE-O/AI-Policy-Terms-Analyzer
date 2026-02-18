@@ -24,6 +24,9 @@ python policy_analyzer.py
 
 # Run examples to see what it can do
 python example_usage.py
+
+# Run the quick start guide
+python quick_start.py
 ```
 
 ### Configuration
@@ -192,9 +195,13 @@ results = analyzer.analyze(policy_text, "Company")
 
 - `policy_analyzer.py` - Main analyzer tool with PolicyAnalyzer class
 - `example_usage.py` - Comprehensive examples showing different use cases
+- `quick_start.py` - Interactive quick start guide for new users
+- `batch_analyzer.py` - Batch processing tool for multiple policies
+- `test_google_cloud.py` - Tests for Google Cloud detection
 - `batch_analyzer.py` - Batch processing tool for multiple companies
 - `quick_start.py` - Interactive beginner-friendly guide
 - `requirements.txt` - Python dependencies (minimal - uses standard library)
+- `docs/configuration.md` - Comprehensive configuration documentation
 - `README.md` - This documentation file
 - `docs/configuration.md` - **Configuration guide** for customizing the analyzer
 - `docs/examples/` - Example configuration files for different use cases
