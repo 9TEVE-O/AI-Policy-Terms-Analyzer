@@ -29,7 +29,17 @@ python example_usage.py
 python quick_start.py
 ```
 
-For detailed configuration options and advanced usage, see the [Configuration Documentation](docs/configuration.md).
+### Configuration
+
+You can customize the analyzer's behavior using configuration files. See [Configuration Guide](docs/configuration.md) for detailed options.
+
+```bash
+# Create a config file in your directory
+cp docs/examples/policyanalyzerrc.json .
+
+# Or use a custom config
+python policy_analyzer.py --config my_custom_config.json
+```
 
 ### Using in Your Code
 
@@ -188,10 +198,21 @@ results = analyzer.analyze(policy_text, "Company")
 - `quick_start.py` - Interactive quick start guide for new users
 - `batch_analyzer.py` - Batch processing tool for multiple policies
 - `test_google_cloud.py` - Tests for Google Cloud detection
+- `batch_analyzer.py` - Batch processing tool for multiple companies
+- `quick_start.py` - Interactive beginner-friendly guide
 - `requirements.txt` - Python dependencies (minimal - uses standard library)
 - `docs/configuration.md` - Comprehensive configuration documentation
 - `README.md` - This documentation file
+- `docs/configuration.md` - **Configuration guide** for customizing the analyzer
+- `docs/examples/` - Example configuration files for different use cases
 - AI workshop materials (PDFs) - Learning resources
+
+## 📚 Documentation
+
+- **[Configuration Guide](docs/configuration.md)** - Complete guide to configuring the analyzer
+- **[User Guide](USER_GUIDE.md)** - Detailed guide for beginners
+- **[Quick Reference](QUICK_REFERENCE.md)** - Quick command reference
+- **[Project Summary](PROJECT_SUMMARY.md)** - Technical implementation details
 
 ## 🎓 Learning Resources
 

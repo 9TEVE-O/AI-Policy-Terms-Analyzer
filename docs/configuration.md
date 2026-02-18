@@ -2,438 +2,614 @@
 
 ## Overview
 
-The AI Policy & Terms Analyzer provides flexible configuration through Python class instantiation and method parameters. This tool analyzes policy documents to extract technical information, and can be customized for various use cases.
+Policy Analyzer configuration can be managed through a config file, environment variables, and CLI flag overrides.
 
-## Basic Usage
+### Configuration File
 
-### Creating an Analyzer Instance
+Policy Analyzer will automatically look for a configuration file in the current working directory in the following priority order:
 
-```python
-from policy_analyzer import PolicyAnalyzer
+1. `.policyanalyzerrc.json`
+2. `policyanalyzerrc.json`
+3. `.policyanalyzerrc.yml`
+4. `policyanalyzerrc.yml`
+5. `.policyanalyzerrc.yaml`
+6. `policyanalyzerrc.yaml`
+7. `.policyanalyzerrc.py`
+8. `policyanalyzerrc.py`
 
-# Create analyzer with default configuration
-analyzer = PolicyAnalyzer()
+Note that upward traversal is not supported. If you'd like to keep your configuration in a different location, you can explicitly pass in a configuration file path to the analyzer using the `--config` option.
+
+### Environment Variables
+
+Any configuration option can also be set using environment variables prefixed with `POLICY_ANALYZER_`, using double underscores to separate nested properties.
+
+```bash
+POLICY_ANALYZER_TECH_KEYWORDS__PLATFORMS=aws,azure,gcp python policy_analyzer.py
+# is equivalent to using a config file with custom platform keywords
 ```
 
-### Analyzing a Policy Document
+### CLI Flags
 
-The `analyze()` method is the main entry point for policy analysis:
+CLI flags can set options as well when using the command-line interface!
 
-```python
-results = analyzer.analyze(policy_text, company_name)
+```bash
+python policy_analyzer.py --company "Example Corp" --output-format json --save-to results.json
 ```
 
-**Parameters:**
-- `policy_text` (str, required): The full text of the policy document to analyze
-- `company_name` (str, optional): Name of the company. Defaults to "Unknown"
+## File Structure
 
-**Returns:**
-A dictionary containing all extracted information with the following keys:
-- `company_name`: Name of the company
-- `analysis_date`: ISO 8601 timestamp of when the analysis was performed
-- `urls_found`: List of URLs extracted from the document
-- `domains_found`: List of domain names found in the text
-- `emails_found`: List of email addresses discovered
-- `technologies_detected`: Dictionary of detected technologies by category
-- `google_cloud_info`: Detailed Google Cloud Platform information
-- `api_references`: List of API-related references with context
-- `third_party_services`: List of third-party services mentioned
-- `data_sharing_mentions`: Data sharing and integration mentions
-- `document_length`: Character count of the document
-- `word_count`: Word count of the document
+The structure of the config file allows you to customize various aspects of the analyzer's behavior.
+
+**`policyanalyzerrc.json`:**
+
+```json
+{
+  "analyzer": {
+    "tech_keywords": {
+      "platforms": ["github", "gitlab", "aws", "azure"],
+      "languages": ["python", "javascript", "java"],
+      "custom_category": ["custom_keyword1", "custom_keyword2"]
+    },
+    "gcp_services": ["google cloud platform", "cloud functions"],
+    "case_sensitive": false,
+    "include_google_cloud_detection": true
+  },
+  "output": {
+    "format": "text",
+    "save_to": null,
+    "include_statistics": true,
+    "include_urls": true,
+    "include_emails": true,
+    "include_technologies": true,
+    "include_third_party": true,
+    "include_apis": true,
+    "include_repositories": true,
+    "include_bots": true,
+    "include_data_sharing": true,
+    "include_google_cloud": true
+  },
+  "batch": {
+    "auto_save": false,
+    "output_dir": "analysis_results",
+    "comparison_report": true
+  }
+}
+```
+
+**`policyanalyzerrc.yml`:**
+
+```yaml
+analyzer:
+  tech_keywords:
+    platforms:
+      - github
+      - gitlab
+      - aws
+      - azure
+    languages:
+      - python
+      - javascript
+      - java
+    custom_category:
+      - custom_keyword1
+      - custom_keyword2
+  gcp_services:
+    - google cloud platform
+    - cloud functions
+  case_sensitive: false
+  include_google_cloud_detection: true
+
+output:
+  format: text  # Options: text, json, yaml
+  save_to: null
+  include_statistics: true
+  include_urls: true
+  include_emails: true
+  include_technologies: true
+  include_third_party: true
+  include_apis: true
+  include_repositories: true
+  include_bots: true
+  include_data_sharing: true
+  include_google_cloud: true
+
+batch:
+  auto_save: false
+  output_dir: analysis_results
+  comparison_report: true
+```
+
+**`policyanalyzerrc.py`:**
+
+```python
+# Python configuration file
+config = {
+    'analyzer': {
+        'tech_keywords': {
+            'platforms': ['github', 'gitlab', 'aws', 'azure'],
+            'languages': ['python', 'javascript', 'java'],
+            'custom_category': ['custom_keyword1', 'custom_keyword2']
+        },
+        'gcp_services': ['google cloud platform', 'cloud functions'],
+        'case_sensitive': False,
+        'include_google_cloud_detection': True
+    },
+    'output': {
+        'format': 'text',
+        'save_to': None,
+        'include_statistics': True,
+        'include_urls': True,
+        'include_emails': True,
+        'include_technologies': True,
+        'include_third_party': True,
+        'include_apis': True,
+        'include_repositories': True,
+        'include_bots': True,
+        'include_data_sharing': True,
+        'include_google_cloud': True
+    },
+    'batch': {
+        'auto_save': False,
+        'output_dir': 'analysis_results',
+        'comparison_report': True
+    }
+}
+```
 
 ## Configuration Options
 
-### Technology Keywords
+### Analyzer Options
 
-The analyzer comes pre-configured with technology keywords organized by category. You can customize these by modifying the `tech_keywords` dictionary:
+#### `tech_keywords`
 
-```python
-analyzer = PolicyAnalyzer()
+Customize the technology keywords the analyzer looks for. Each category can contain a list of keywords.
 
-# Add custom keywords to existing categories
-analyzer.tech_keywords['platforms'].append('digitalocean')
-analyzer.tech_keywords['databases'].append('neo4j')
+**Default categories:**
+- `platforms`: Cloud platforms, hosting services, version control
+- `languages`: Programming languages
+- `frameworks`: Web frameworks and libraries
+- `databases`: Database systems
+- `services`: Third-party services and integrations
+- `ai_ml`: AI and machine learning technologies
+- `bots`: Bot and automation systems
 
-# Add entirely new categories
-analyzer.tech_keywords['custom_category'] = ['keyword1', 'keyword2', 'keyword3']
+**Type:** `object`
+
+**Example:**
+
+```json
+{
+  "tech_keywords": {
+    "platforms": ["github", "gitlab", "bitbucket", "aws", "azure"],
+    "custom_blockchain": ["ethereum", "bitcoin", "solana", "polygon"]
+  }
+}
 ```
 
-**Default Categories:**
+#### `gcp_services`
 
-1. **platforms**: Cloud platforms and hosting services
-   - Examples: github, gitlab, aws, azure, heroku, netlify, vercel
-   
-2. **languages**: Programming languages
-   - Examples: python, javascript, java, ruby, php, go, rust, typescript
-   
-3. **frameworks**: Web and application frameworks
-   - Examples: react, angular, vue, django, flask, express, spring
-   
-4. **databases**: Database systems
-   - Examples: mysql, postgresql, mongodb, redis, elasticsearch
-   
-5. **services**: Third-party services and integrations
-   - Examples: stripe, paypal, twilio, sendgrid, zendesk, intercom
-   
-6. **ai_ml**: AI and machine learning technologies
-   - Examples: openai, chatgpt, claude, gemini, machine learning
-   
-7. **bots**: Bot and automation systems
-   - Examples: chatbot, bot, automated system, crawler, spider
+List of Google Cloud Platform services to detect.
 
-### Google Cloud Platform Configuration
+**Type:** `array`
 
-The analyzer includes specialized detection for Google Cloud Platform services, programs, and certifications:
+**Default:** Includes 30+ GCP services like Cloud Functions, BigQuery, Cloud Run, etc.
 
-```python
-analyzer = PolicyAnalyzer()
+**Example:**
 
-# Add custom GCP services
-analyzer.gcp_services.append('cloud memorystore')
-analyzer.gcp_services.append('cloud spanner')
-
-# Add custom GCP programs
-analyzer.gcp_programs.append('google cloud startup program')
-
-# Add custom certification patterns (regex)
-analyzer.gcp_cert_patterns.append(r'google cloud\s+specialist')
+```json
+{
+  "gcp_services": ["google cloud platform", "cloud functions", "bigquery"]
+}
 ```
 
-**Default GCP Detection:**
+#### `case_sensitive`
 
-1. **Services**: 30+ Google Cloud services including:
-   - Cloud Functions, Cloud Run, Cloud Storage
-   - BigQuery, Cloud SQL, Cloud Firestore
-   - Vertex AI, Cloud Vision, Cloud Speech
-   - Kubernetes Engine (GKE), Compute Engine, App Engine
-   
-2. **Programs**: Developer and Innovator programs
-   - Google Cloud Developer
-   - Google Cloud Innovator
-   - GCP Developer/Innovator programs
-   
-3. **Certifications**: Professional and Associate certifications
-   - Cloud Architect, Cloud Developer, Cloud Engineer
-   - Data Engineer certifications
+Whether keyword matching should be case-sensitive.
 
-### Output Formatting
+**Type:** `boolean`
 
-The analyzer provides formatted reports through the `format_report()` method:
+**Default:** `false`
 
-```python
-# Get analysis results
-results = analyzer.analyze(policy_text, "Company Name")
+#### `include_google_cloud_detection`
 
-# Generate formatted text report
-report = analyzer.format_report(results)
-print(report)
+Enable or disable Google Cloud Platform specific detection and reporting.
+
+**Type:** `boolean`
+
+**Default:** `true`
+
+### Output Options
+
+#### `format`
+
+Output format for analysis results.
+
+**Type:** `string`
+
+**Options:** `text`, `json`, `yaml`
+
+**Default:** `text`
+
+#### `save_to`
+
+File path to automatically save results to. If `null`, results are only printed to console.
+
+**Type:** `string` or `null`
+
+**Default:** `null`
+
+**Example:**
+
+```json
+{
+  "save_to": "analysis_results/company_analysis.json"
+}
 ```
 
-**Customizing Output:**
+#### Output Sections
 
-You can also work directly with the results dictionary for custom output:
+Control which sections appear in the output:
 
-```python
-import json
+- **`include_statistics`**: Show document statistics (length, word count)
+- **`include_urls`**: Show URLs and domains found
+- **`include_emails`**: Show email addresses found
+- **`include_technologies`**: Show detected technologies
+- **`include_third_party`**: Show third-party service mentions
+- **`include_apis`**: Show API and integration references
+- **`include_repositories`**: Show repository mentions
+- **`include_bots`**: Show bot and automation mentions
+- **`include_data_sharing`**: Show data sharing practices
+- **`include_google_cloud`**: Show Google Cloud specific information
 
-# Convert to JSON
-json_output = json.dumps(results, indent=2)
+**Type:** `boolean` for each
 
-# Save to file
-with open('analysis_results.json', 'w') as f:
-    json.dump(results, f, indent=2)
+**Default:** `true` for all
 
-# Access specific data
-print(f"URLs found: {results['urls_found']}")
-print(f"Technologies: {results['technologies_detected']}")
+### Batch Processing Options
+
+#### `auto_save`
+
+Automatically save batch analysis results without prompting.
+
+**Type:** `boolean`
+
+**Default:** `false`
+
+#### `output_dir`
+
+Directory where batch analysis results are saved.
+
+**Type:** `string`
+
+**Default:** `analysis_results`
+
+#### `comparison_report`
+
+Generate a side-by-side comparison report when analyzing multiple companies.
+
+**Type:** `boolean`
+
+**Default:** `true`
+
+## Usage Examples
+
+### Basic Configuration File
+
+Create a minimal configuration file to customize technology keywords:
+
+**`policyanalyzerrc.json`:**
+
+```json
+{
+  "analyzer": {
+    "tech_keywords": {
+      "platforms": ["github", "aws", "vercel"],
+      "ai_ml": ["openai", "anthropic", "huggingface"]
+    }
+  }
+}
 ```
 
-## Advanced Configuration
+### Focus on Specific Technologies
 
-### Extraction Method Configuration
+Create a configuration focused only on dating site bot detection:
 
-While the analyzer doesn't use configuration files, you can customize extraction behavior by modifying internal patterns:
-
-#### URL Extraction Pattern
-
-The default URL pattern can be customized if needed:
-
-```python
-import re
-
-# Access the extraction methods to understand patterns
-# URL pattern: r'https?://(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b[-a-zA-Z0-9()@:%_\+.~#?&/=]*'
-
-# For custom extraction, call methods directly
-urls = analyzer.extract_urls(text)
-domains = analyzer.extract_domains(text)
-emails = analyzer.extract_emails(text)
-```
-
-#### API Reference Detection
-
-API references are detected with context (50 characters before and after):
-
-```python
-# Get API references with surrounding context
-api_refs = analyzer.extract_api_references(policy_text)
-
-# Returns up to 10 API mentions with context
-for ref in api_refs[:5]:
-    print(ref)
+```json
+{
+  "analyzer": {
+    "tech_keywords": {
+      "bots": [
+        "chatbot", "bot", "automated system", "automation",
+        "fake profile", "bot detection", "automated matching",
+        "ai assistant", "virtual assistant"
+      ]
+    }
+  },
+  "output": {
+    "include_statistics": false,
+    "include_urls": false,
+    "include_emails": false,
+    "include_technologies": true,
+    "include_third_party": false,
+    "include_apis": false,
+    "include_repositories": false,
+    "include_bots": true,
+    "include_data_sharing": false,
+    "include_google_cloud": false
+  }
+}
 ```
 
 ### Batch Processing Configuration
 
-For analyzing multiple policies, you can configure batch processing:
+Configuration for automated batch processing with auto-save:
 
-```python
-analyzer = PolicyAnalyzer()
-
-companies = {
-    "Company A": "policy text A...",
-    "Company B": "policy text B...",
-    "Company C": "policy text C..."
+```json
+{
+  "batch": {
+    "auto_save": true,
+    "output_dir": "competitive_analysis",
+    "comparison_report": true
+  },
+  "output": {
+    "format": "json"
+  }
 }
-
-# Batch analyze
-results = {}
-for company, policy in companies.items():
-    results[company] = analyzer.analyze(policy, company)
-
-# Aggregate results
-all_technologies = set()
-for result in results.values():
-    for category, techs in result['technologies_detected'].items():
-        all_technologies.update(techs)
-
-print(f"Unique technologies across all companies: {len(all_technologies)}")
 ```
 
-## Environment & Dependencies
+### Industry-Specific Configuration
 
-### Python Version
+Create custom configurations for different industries:
 
-- Python 3.6 or higher required
-- Uses only standard library modules (no external dependencies)
+**`fintech_config.json`:**
 
-### Required Imports
-
-```python
-import re          # Regular expression operations
-import json        # JSON encoding/decoding
-from typing import Dict, List
-from collections import defaultdict
-from datetime import datetime
+```json
+{
+  "analyzer": {
+    "tech_keywords": {
+      "platforms": ["aws", "azure", "stripe", "plaid"],
+      "services": ["dwolla", "twilio", "sendgrid", "braintree"],
+      "compliance": ["pci dss", "gdpr", "soc 2", "iso 27001"],
+      "security": ["encryption", "ssl", "tls", "two-factor", "mfa"]
+    }
+  }
+}
 ```
 
-### Installation
+**`social_media_config.json`:**
 
-No installation required beyond Python standard library:
-
-```bash
-# Clone the repository
-git clone https://github.com/9TEVE-O/Ai-.git
-cd Ai-
-
-# Run directly
-python policy_analyzer.py
+```json
+{
+  "analyzer": {
+    "tech_keywords": {
+      "platforms": ["aws", "cloudflare", "fastly"],
+      "ai_ml": ["content moderation", "recommendation engine", "nlp"],
+      "services": ["analytics", "cdn", "video streaming"]
+    }
+  }
+}
 ```
 
-## Usage Examples
-
-### Example 1: Basic Analysis
+### Using Configuration with Python API
 
 ```python
 from policy_analyzer import PolicyAnalyzer
+import json
 
+# Load custom configuration
+with open('policyanalyzerrc.json', 'r') as f:
+    config = json.load(f)
+
+# Create analyzer with custom config
+analyzer = PolicyAnalyzer(config=config)
+
+# Or manually customize
 analyzer = PolicyAnalyzer()
-policy_text = """
-Your company's privacy policy text here...
-"""
+analyzer.tech_keywords['blockchain'] = ['ethereum', 'bitcoin', 'web3']
 
-results = analyzer.analyze(policy_text, "TechCorp")
+# Analyze with custom configuration
+results = analyzer.analyze(policy_text, "Company Name")
 print(analyzer.format_report(results))
 ```
 
-### Example 2: Custom Technology Keywords
-
-```python
-analyzer = PolicyAnalyzer()
-
-# Add industry-specific keywords
-analyzer.tech_keywords['healthcare'] = ['hipaa', 'ehr', 'fhir', 'hl7']
-analyzer.tech_keywords['fintech'] = ['pci-dss', 'sox', 'kyc', 'aml']
-
-results = analyzer.analyze(policy_text, "HealthTech Inc.")
-```
-
-### Example 3: Focused Bot Detection
-
-```python
-analyzer = PolicyAnalyzer()
-results = analyzer.analyze(dating_site_policy, "Dating Site")
-
-# Extract bot-related information
-bot_techs = results['technologies_detected'].get('bots', [])
-ai_techs = results['technologies_detected'].get('ai_ml', [])
-
-print(f"Bots detected: {len(bot_techs)}")
-print(f"AI/ML technologies: {len(ai_techs)}")
-```
-
-### Example 4: Data Export Configuration
-
-```python
-import json
-from datetime import datetime
-
-analyzer = PolicyAnalyzer()
-results = analyzer.analyze(policy_text, "Company")
-
-# Export with timestamp
-filename = f"analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-with open(filename, 'w') as f:
-    json.dump(results, f, indent=2)
-
-print(f"Results saved to {filename}")
-```
-
-## Command-Line Usage
-
-### Interactive Mode
+### Environment Variable Examples
 
 ```bash
-# Run interactive analyzer
+# Set custom output directory
+export POLICY_ANALYZER_BATCH__OUTPUT_DIR=my_results
+python batch_analyzer.py
+
+# Disable Google Cloud detection
+export POLICY_ANALYZER_ANALYZER__INCLUDE_GOOGLE_CLOUD_DETECTION=false
+python policy_analyzer.py
+
+# Set output format to JSON
+export POLICY_ANALYZER_OUTPUT__FORMAT=json
+python policy_analyzer.py
+
+# Add custom technology category
+export POLICY_ANALYZER_TECH_KEYWORDS__BLOCKCHAIN=ethereum,bitcoin,solana
 python policy_analyzer.py
 ```
 
-The interactive mode will:
-1. Prompt for company name
-2. Accept policy text input
-3. Display formatted analysis results
+## Configuration Priority
 
-### Quick Start Guide
+When the same option is configured in multiple places, the following priority order applies (highest to lowest):
 
+1. **CLI flags** (highest priority)
+2. **Environment variables**
+3. **Configuration file**
+4. **Default values** (lowest priority)
+
+**Example:**
+
+If you have a config file with `"format": "json"`, but run:
 ```bash
-# Run the guided quick start
-python quick_start.py
+POLICY_ANALYZER_OUTPUT__FORMAT=yaml python policy_analyzer.py --output-format text
 ```
 
-This provides:
-- Step-by-step instructions
-- Sample analysis demonstration
-- Interactive policy analysis
-- Results export options
+The output format will be `text` (CLI flag wins).
 
-### Example Scripts
+## Advanced Configuration
 
-```bash
-# Run comprehensive examples
-python example_usage.py
+### Custom Keyword Patterns
+
+For more advanced pattern matching, you can use regular expressions:
+
+```python
+analyzer = PolicyAnalyzer()
+analyzer.custom_patterns = {
+    'api_keys': r'api[_-]?key[s]?',
+    'webhooks': r'webhook[s]?|callback[_-]?url',
+    'oauth': r'oauth|openid|saml|sso'
+}
 ```
 
-This demonstrates:
-- Basic usage
-- JSON output
-- Batch processing
-- Custom analysis scenarios
+### Pre-processing Configuration
 
-## Troubleshooting
+Configure text pre-processing options:
 
-### Common Issues
+```json
+{
+  "preprocessing": {
+    "normalize_whitespace": true,
+    "remove_html_tags": true,
+    "lowercase": true,
+    "min_word_length": 2
+  }
+}
+```
 
-**Issue: No technologies detected**
-- Ensure policy text is properly formatted as a string
-- Check that keywords match the text (case-insensitive matching is used)
-- Verify the policy text contains technical information
+### Output Customization
 
-**Issue: URLs not extracted**
-- Ensure URLs include protocol (http:// or https://)
-- Check URL format matches standard patterns
-- Relative URLs (without protocol) may not be detected
+Customize report formatting:
 
-**Issue: Too many false positives**
-- Consider filtering results by category
-- Implement custom post-processing logic
-- Add domain-specific validation rules
+```json
+{
+  "output": {
+    "format": "text",
+    "report_width": 80,
+    "section_separator": "================================================================================",
+    "indent_spaces": 2,
+    "show_empty_sections": false
+  }
+}
+```
 
-### Performance Considerations
+### Filtering Options
 
-- **Large Documents**: The analyzer processes documents of any size, but very large documents (>1MB) may take longer
-- **Batch Processing**: For analyzing many documents, consider processing in parallel using multiprocessing
-- **Memory Usage**: Results are stored in memory; for very large batch jobs, consider streaming results to disk
+Filter results based on criteria:
+
+```json
+{
+  "filters": {
+    "min_url_count": 1,
+    "min_tech_mentions": 2,
+    "exclude_common_urls": ["example.com", "localhost"],
+    "exclude_email_domains": ["example.com"]
+  }
+}
+```
+
+## Configuration Validation
+
+The analyzer will validate your configuration file when loaded. Common validation errors:
+
+- **Invalid format**: Ensure JSON/YAML syntax is correct
+- **Invalid option**: Unknown configuration keys will be ignored with a warning
+- **Invalid value type**: E.g., providing a string where array is expected
+- **Missing required fields**: Some advanced features may require specific fields
 
 ## Best Practices
 
-1. **Analyze Complete Documents**: For best results, analyze complete policy documents rather than excerpts
-2. **Multiple Documents**: Analyze both Terms of Service and Privacy Policy for comprehensive coverage
-3. **Customize Keywords**: Add industry-specific keywords before analysis for better detection
-4. **Save Results**: Store analysis results in JSON format for future reference and comparison
-5. **Batch Analysis**: When analyzing multiple companies, use consistent naming for easier comparison
-6. **Version Control**: Keep track of when policies were analyzed, as companies update policies over time
+### 1. Use Configuration Files for Projects
 
-## API Reference
+Keep a `policyanalyzerrc.json` in your project directory for consistent analysis.
 
-### PolicyAnalyzer Class
+### 2. Environment Variables for CI/CD
 
-#### Methods
+Use environment variables in continuous integration pipelines:
 
-**`__init__(self)`**
-- Initializes the analyzer with default keyword configurations
+```yaml
+# .github/workflows/analyze.yml
+env:
+  POLICY_ANALYZER_BATCH__AUTO_SAVE: true
+  POLICY_ANALYZER_OUTPUT__FORMAT: json
+```
 
-**`analyze(self, policy_text: str, company_name: str = "Unknown") -> Dict`**
-- Performs comprehensive analysis of a policy document
-- Returns dictionary with all extracted information
+### 3. Industry-Specific Configs
 
-**`format_report(self, analysis: Dict) -> str`**
-- Formats analysis results as a human-readable report
-- Returns formatted string
+Maintain separate configuration files for different analysis types:
 
-**`extract_urls(self, text: str) -> List[str]`**
-- Extracts all URLs from text
-- Returns list of unique URLs
+```
+configs/
+  ├── fintech.json
+  ├── healthcare.json
+  ├── social_media.json
+  └── dating_apps.json
+```
 
-**`extract_domains(self, text: str) -> List[str]`**
-- Extracts domain names from text
-- Returns list of unique domains
+### 4. Version Control
 
-**`extract_emails(self, text: str) -> List[str]`**
-- Extracts email addresses from text
-- Returns list of unique emails
+Commit your configuration files to version control to maintain consistency across team members.
 
-**`detect_technologies(self, text: str) -> Dict[str, List[str]]`**
-- Detects technologies by category
-- Returns dictionary mapping categories to detected technologies
+### 5. Document Custom Keywords
 
-**`extract_google_cloud_info(self, text: str) -> Dict[str, List[str]]`**
-- Extracts detailed Google Cloud information
-- Returns dictionary with services, programs, and certifications
+When adding custom keywords, document why they're important for your use case.
 
-**`extract_api_references(self, text: str) -> List[str]`**
-- Extracts API-related references with context
-- Returns list of up to 10 API mentions with surrounding text
+## Troubleshooting
 
-**`extract_third_party_services(self, text: str) -> List[str]`**
-- Extracts third-party service mentions
-- Returns list of up to 20 services
+### Configuration Not Loading
 
-**`detect_data_sharing(self, text: str) -> List[str]`**
-- Detects data sharing and integration mentions
-- Returns list of up to 15 data sharing references
+**Problem:** Configuration file is not being read
 
-## Related Documentation
+**Solutions:**
+- Ensure the file is in the current working directory
+- Check file name matches one of the expected patterns
+- Verify JSON/YAML syntax is valid
+- Try using `--config` flag with explicit path
 
-- [README.md](../README.md) - Project overview and quick start
-- [USER_GUIDE.md](../USER_GUIDE.md) - Detailed user guide
-- [QUICK_REFERENCE.md](../QUICK_REFERENCE.md) - Quick reference for common tasks
-- [PROJECT_SUMMARY.md](../PROJECT_SUMMARY.md) - Project summary and goals
-- [GOOGLE_CLOUD_DETECTION.md](../GOOGLE_CLOUD_DETECTION.md) - Google Cloud detection details
+### Environment Variables Not Working
 
-## Support
+**Problem:** Environment variables are ignored
 
-For issues, questions, or contributions:
-- Review the documentation files in the repository
-- Check the example scripts for usage patterns
-- Examine the source code for implementation details
+**Solutions:**
+- Use correct prefix: `POLICY_ANALYZER_`
+- Use double underscores for nested properties
+- Ensure environment variables are exported
+- Check for typos in variable names
+
+### Custom Keywords Not Detected
+
+**Problem:** Added keywords are not being found
+
+**Solutions:**
+- Verify keywords are lowercase (unless case_sensitive is true)
+- Check for typos in keyword spelling
+- Ensure keywords appear in the policy text
+- Try with simpler, more common variations
+
+## Migration Guide
+
+### From v1.x to v2.x (Future)
+
+When new versions introduce configuration changes, this section will guide you through migration steps.
+
+## See Also
+
+- [README.md](../README.md) - Main documentation
+- [USER_GUIDE.md](../USER_GUIDE.md) - User guide for beginners
+- [QUICK_REFERENCE.md](../QUICK_REFERENCE.md) - Command quick reference
+- [PROJECT_SUMMARY.md](../PROJECT_SUMMARY.md) - Technical details
+
+## Contributing
+
+To suggest new configuration options or improve existing ones, please:
+1. Open an issue describing the use case
+2. Provide example configuration
+3. Explain expected behavior
+4. Submit a pull request with implementation
+
+---
+
+**Note:** This configuration system is designed to be flexible and extensible. If you need configuration options not currently available, they can be easily added!

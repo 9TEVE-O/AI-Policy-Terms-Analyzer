@@ -70,3 +70,13 @@ Thumbs.db
 # Large data files (tracked by Git LFS - see .gitattributes)
 # *.pdf
 # *.xlsx
+
+# User configuration files (example configs are kept in docs/examples/)
+policyanalyzerrc.json
+policyanalyzerrc.yml
+policyanalyzerrc.yaml
+policyanalyzerrc.py
+.policyanalyzerrc.json
+.policyanalyzerrc.yml
+.policyanalyzerrc.yaml
+.policyanalyzerrc.py

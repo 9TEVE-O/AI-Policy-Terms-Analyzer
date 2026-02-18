@@ -1,0 +1,40 @@
+{
+  "analyzer": {
+    "tech_keywords": {
+      "bots": [
+        "chatbot",
+        "bot",
+        "automated system",
+        "automation",
+        "fake profile",
+        "bot detection",
+        "automated matching",
+        "ai assistant",
+        "virtual assistant",
+        "ai matching",
+        "algorithm",
+        "matching algorithm"
+      ],
+      "ai_ml": [
+        "machine learning",
+        "artificial intelligence",
+        "neural network",
+        "recommendation",
+        "matching system",
+        "profile matching"
+      ]
+    }
+  },
+  "output": {
+    "include_statistics": false,
+    "include_urls": false,
+    "include_emails": false,
+    "include_technologies": true,
+    "include_third_party": false,
+    "include_apis": false,
+    "include_repositories": false,
+    "include_bots": true,
+    "include_data_sharing": true,
+    "include_google_cloud": false
+  }
+}

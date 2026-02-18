@@ -1,0 +1,34 @@
+{
+  "analyzer": {
+    "tech_keywords": {
+      "platforms": ["aws", "azure", "stripe", "plaid"],
+      "services": ["dwolla", "twilio", "sendgrid", "braintree"],
+      "compliance": ["pci dss", "gdpr", "soc 2", "iso 27001", "ccpa", "hipaa"],
+      "security": [
+        "encryption",
+        "ssl",
+        "tls",
+        "two-factor",
+        "mfa",
+        "multi-factor authentication",
+        "end-to-end encryption",
+        "aes",
+        "rsa"
+      ],
+      "payment": [
+        "payment processor",
+        "credit card",
+        "debit card",
+        "ach",
+        "wire transfer",
+        "payment gateway"
+      ]
+    }
+  },
+  "output": {
+    "format": "json",
+    "include_technologies": true,
+    "include_third_party": true,
+    "include_data_sharing": true
+  }
+}
