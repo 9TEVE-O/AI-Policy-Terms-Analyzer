@@ -9,12 +9,12 @@ compare them side-by-side. Great for competitive analysis!
 from policy_analyzer import PolicyAnalyzer
 import json
 import os
+import re
 from datetime import datetime
 
 
 def save_results(results, output_dir='analysis_results'):
     """Save all results to JSON files in a directory."""
-    import re
     
     try:
         if not os.path.exists(output_dir):
