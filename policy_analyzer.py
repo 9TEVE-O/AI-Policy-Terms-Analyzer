@@ -13,6 +13,8 @@ to extract technical information including:
 
 import re
 import json
+import itertools
+from datetime import datetime
 from typing import Dict, List
 from collections import defaultdict
 
@@ -61,27 +63,47 @@ class PolicyAnalyzer:
             r'gcp\s+(?:certified\s+)?(?:professional|associate)?\s*(?:architect|developer|engineer)',
             r'google\s+(?:certified\s+)?(?:professional|associate)?\s*cloud'
         ]
-    
+
+        # Pre-compile regex patterns for performance (avoids recompilation on every call)
+        self._url_re = re.compile(
+            r'https?://(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b[-a-zA-Z0-9()@:%_\+.~#?&/=]*',
+            re.IGNORECASE)
+        self._domain_re = re.compile(r'\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b')
+        self._version_re = re.compile(r'^[v]?\d+\.\d+', re.IGNORECASE)
+        self._email_re = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b')
+        self._api_re = re.compile(r'\b(?:API|api|REST|GraphQL|webhook|endpoint)s?\b', re.IGNORECASE)
+        self._service_res = [
+            re.compile(r'third[- ]party\s+(?:service|provider|platform)s?:?\s*([^\n.]+)', re.IGNORECASE),
+            re.compile(r'we\s+(?:use|utilize|employ)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s+(?:for|to)', re.IGNORECASE),
+            re.compile(r'powered\s+by\s+([A-Z][a-zA-Z]+)', re.IGNORECASE),
+        ]
+        self._sharing_res = [
+            # re.DOTALL allows matching across newlines, preserving original [\s\S] behavior
+            # for multi-line policy clauses
+            re.compile(
+                r'(?:share|transfer|disclose|provide).{0,200}?(?:data|information).{0,200}?(?:with|to)\s+([^\n.]+)',
+                re.IGNORECASE | re.DOTALL),
+            re.compile(r'(?:integrate|integration|connected|connection)\s+(?:with|to)\s+([^\n.]+)', re.IGNORECASE),
+        ]
+        self._gcp_cert_res = [re.compile(p, re.IGNORECASE) for p in self.gcp_cert_patterns]
+
     def extract_urls(self, text: str) -> List[str]:
         """Extract all URLs from the text."""
-        url_pattern = r'https?://(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b[-a-zA-Z0-9()@:%_\+.~#?&/=]*'
-        urls = re.findall(url_pattern, text, re.IGNORECASE)
+        urls = self._url_re.findall(text)
         return list(set(urls))  # Remove duplicates
     
     def extract_domains(self, text: str) -> List[str]:
         """Extract domain names from text."""
         # Pattern for domain names - requires alphabetic TLD and minimum length
-        domain_pattern = r'\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b'
-        domains = re.findall(domain_pattern, text)
+        domains = self._domain_re.findall(text)
         # Filter out likely version numbers (e.g., v1.2, 3.14)
-        filtered_domains = [d for d in domains if not re.match(r'^[v]?\d+\.\d+', d, re.IGNORECASE)]
+        filtered_domains = [d for d in domains if not self._version_re.match(d)]
         # Return unique domains
         return list(set(filtered_domains))
     
     def extract_emails(self, text: str) -> List[str]:
         """Extract email addresses from text."""
-        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
-        emails = re.findall(email_pattern, text)
+        emails = self._email_re.findall(text)
         return list(set(emails))
     
     def detect_technologies(self, text: str) -> Dict[str, List[str]]:
@@ -98,45 +120,31 @@ class PolicyAnalyzer:
     
     def extract_api_references(self, text: str) -> List[str]:
         """Extract API-related references."""
-        api_pattern = r'\b(?:API|api|REST|GraphQL|webhook|endpoint)s?\b'
-        
-        # Look for specific API mentions
+        # Look for specific API mentions, stopping after the first 10
         api_contexts = []
-        for match in re.finditer(api_pattern, text, re.IGNORECASE):
+        for match in itertools.islice(self._api_re.finditer(text), 10):
             start = max(0, match.start() - 50)
             end = min(len(text), match.end() + 50)
             context = text[start:end].strip()
             api_contexts.append(context)
         
-        return api_contexts[:10]  # Limit to first 10 mentions
+        return api_contexts
     
     def extract_third_party_services(self, text: str) -> List[str]:
         """Extract third-party service mentions."""
         services = []
         
-        # Common service patterns
-        service_patterns = [
-            r'third[- ]party\s+(?:service|provider|platform)s?:?\s*([^\n.]+)',
-            r'we\s+(?:use|utilize|employ)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s+(?:for|to)',
-            r'powered\s+by\s+([A-Z][a-zA-Z]+)',
-        ]
-        
-        for pattern in service_patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
+        for pattern in self._service_res:
+            matches = pattern.findall(text)
             services.extend(matches)
         
         return list(set(services))[:20]
     
     def detect_data_sharing(self, text: str) -> List[str]:
         """Detect data sharing and integration mentions."""
-        sharing_patterns = [
-            r'(?:share|transfer|disclose|provide)[\s\S]{0,200}?(?:data|information)[\s\S]{0,200}?(?:with|to)\s+([^\n.]+)',
-            r'(?:integrate|integration|connected|connection)\s+(?:with|to)\s+([^\n.]+)'
-        ]
-        
         sharing_info = []
-        for pattern in sharing_patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
+        for pattern in self._sharing_res:
+            matches = pattern.findall(text)
             sharing_info.extend(matches)
         
         return list(set(sharing_info))[:15]
@@ -169,9 +177,9 @@ class PolicyAnalyzer:
             if program in text_lower:
                 gcp_info['programs'].append(program)
         
-        # Detect Google Cloud certifications using regex patterns
-        for pattern in self.gcp_cert_patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
+        # Detect Google Cloud certifications using pre-compiled regex patterns
+        for cert_re in self._gcp_cert_res:
+            matches = cert_re.findall(text)
             gcp_info['certifications'].extend(matches)
         
         # Remove duplicates and return
@@ -192,8 +200,6 @@ class PolicyAnalyzer:
         Returns:
             Dictionary containing all extracted information
         """
-        from datetime import datetime
-        
         analysis = {
             'company_name': company_name,
             'analysis_date': datetime.now().isoformat(),
