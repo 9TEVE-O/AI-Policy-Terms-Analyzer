@@ -194,21 +194,84 @@ results = analyzer.analyze(policy_text, "Company")
 ## 📁 Files in This Repository
 
 - `policy_analyzer.py` - Main analyzer tool with PolicyAnalyzer class
+- `ai_operator_os.py` - Subzteveø AI Operator OS (three-tier orchestration framework)
 - `example_usage.py` - Comprehensive examples showing different use cases
 - `quick_start.py` - Interactive quick start guide for new users
 - `batch_analyzer.py` - Batch processing tool for multiple policies
 - `test_google_cloud.py` - Tests for Google Cloud detection
-- `batch_analyzer.py` - Batch processing tool for multiple companies
-- `quick_start.py` - Interactive beginner-friendly guide
+- `test_ai_operator_os.py` - Tests for the AI Operator OS
 - `requirements.txt` - Python dependencies (minimal - uses standard library)
+- `docs/ai_operator_os_architecture.md` - **AI Operator OS architecture guide**
 - `docs/configuration.md` - Comprehensive configuration documentation
-- `README.md` - This documentation file
-- `docs/configuration.md` - **Configuration guide** for customizing the analyzer
 - `docs/examples/` - Example configuration files for different use cases
+- `README.md` - This documentation file
 - AI workshop materials (PDFs) - Learning resources
+
+## 🤖 Subzteveø AI Operator OS
+
+The repository includes the **Subzteveø AI Operator OS** — a three-tier
+orchestration framework that turns isolated AI experiments into a unified,
+secure, and scalable system.
+
+### Architecture
+
+```
+Application Layer  →  GovernmentCompliance | MusicProduction | Research | Workflow | PromptLib
+Kernel Layer       →  Scheduler | ContextMgr | MemoryMgr | LLMCore | AccessMgr | Evaluation
+Data/Hardware Layer→  RelationalStore | VectorStore | FileStore | Compute Resources
+```
+
+### Quick Start
+
+```python
+from ai_operator_os import AIOperatorOS
+
+os_instance = AIOperatorOS(deployment_mode='local')
+
+# Policy research
+result = os_instance.run('research_agent',
+                         'We use AWS and OpenAI GPT. Contact privacy@example.com',
+                         company_name='Example Corp')
+print(result['response'])
+
+# Government compliance check
+result = os_instance.run('government_compliance_agent',
+                         'Our platform is GDPR and HIPAA compliant with FedRAMP authorization.')
+print(result['compliance_findings'])
+
+# Music production assistance
+result = os_instance.run('music_production_agent',
+                         'Hip hop beat at 90 BPM in Ableton with heavy reverb.')
+print(result['music_context'])
+
+# Evaluation metrics
+print(os_instance.evaluation_report())
+```
+
+### Deployment Modes
+
+| Mode | Description |
+|------|-------------|
+| `local` | All layers in-process on local hardware |
+| `remote_kernel` | Agents local, kernel on a remote server |
+| `personal_remote` | Personal cloud VM with local fallback |
+| `hybrid` | Local agents, cloud kernel/data when available |
+
+```bash
+# Run the interactive OS demo
+python ai_operator_os.py
+
+# Run the OS test suite
+python test_ai_operator_os.py
+```
+
+See **[AI Operator OS Architecture Guide](docs/ai_operator_os_architecture.md)** for full documentation.
+
+---
 
 ## 📚 Documentation
 
+- **[AI Operator OS Architecture](docs/ai_operator_os_architecture.md)** - Three-tier architecture guide
 - **[Configuration Guide](docs/configuration.md)** - Complete guide to configuring the analyzer
 - **[User Guide](USER_GUIDE.md)** - Detailed guide for beginners
 - **[Quick Reference](QUICK_REFERENCE.md)** - Quick command reference
