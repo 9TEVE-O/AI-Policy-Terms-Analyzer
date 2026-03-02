@@ -96,19 +96,18 @@ class PolicyAnalyzer:
         """Extract domain names from text."""
         # Pattern for domain names - requires alphabetic TLD and minimum length
         domains = self._domain_re.findall(text)
-        # Filter out likely version numbers (e.g., v1.2, 3.14)
-        filtered_domains = [d for d in domains if not self._version_re.match(d)]
-        # Return unique domains
-        return list(set(filtered_domains))
+        # Filter out likely version numbers and return unique domains
+        return list({d for d in domains if not self._version_re.match(d)})
     
     def extract_emails(self, text: str) -> List[str]:
         """Extract email addresses from text."""
         emails = self._email_re.findall(text)
         return list(set(emails))
     
-    def detect_technologies(self, text: str) -> Dict[str, List[str]]:
+    def detect_technologies(self, text: str, text_lower: str = None) -> Dict[str, List[str]]:
         """Detect mentioned technologies by category."""
-        text_lower = text.lower()
+        if text_lower is None:
+            text_lower = text.lower()
         found_tech = defaultdict(set)
         
         for category, keywords in self.tech_keywords.items():
@@ -149,44 +148,43 @@ class PolicyAnalyzer:
         
         return list(set(sharing_info))[:15]
     
-    def extract_google_cloud_info(self, text: str) -> Dict[str, List[str]]:
+    def extract_google_cloud_info(self, text: str, text_lower: str = None) -> Dict[str, List[str]]:
         """
         Extract detailed Google Cloud information including services, programs, and certifications.
         
         Args:
             text: The text to analyze
+            text_lower: Optional pre-computed lowercase version of text (avoids recomputation)
             
         Returns:
             Dictionary with categorized Google Cloud information
         """
-        text_lower = text.lower()
+        if text_lower is None:
+            text_lower = text.lower()
         
-        gcp_info = {
-            'services': [],
-            'programs': [],
-            'certifications': []
-        }
+        # Use sets directly to avoid building lists and then converting
+        services = set()
+        programs = set()
+        certifications = set()
         
         # Detect Google Cloud services using the predefined list
         for service in self.gcp_services:
             if service in text_lower:
-                gcp_info['services'].append(service)
+                services.add(service)
         
         # Detect Google Cloud programs using the predefined list
         for program in self.gcp_programs:
             if program in text_lower:
-                gcp_info['programs'].append(program)
+                programs.add(program)
         
         # Detect Google Cloud certifications using pre-compiled regex patterns
         for cert_re in self._gcp_cert_res:
-            matches = cert_re.findall(text)
-            gcp_info['certifications'].extend(matches)
+            certifications.update(cert_re.findall(text))
         
-        # Remove duplicates and return
         return {
-            'services': list(set(gcp_info['services'])),
-            'programs': list(set(gcp_info['programs'])),
-            'certifications': list(set(gcp_info['certifications']))
+            'services': list(services),
+            'programs': list(programs),
+            'certifications': list(certifications)
         }
     
     def analyze(self, policy_text: str, company_name: str = "Unknown") -> Dict:
@@ -200,14 +198,16 @@ class PolicyAnalyzer:
         Returns:
             Dictionary containing all extracted information
         """
+        # Pre-compute lowercase text once to avoid redundant O(n) operations
+        text_lower = policy_text.lower()
         analysis = {
             'company_name': company_name,
             'analysis_date': datetime.now().isoformat(),
             'urls_found': self.extract_urls(policy_text),
             'domains_found': self.extract_domains(policy_text),
             'emails_found': self.extract_emails(policy_text),
-            'technologies_detected': self.detect_technologies(policy_text),
-            'google_cloud_info': self.extract_google_cloud_info(policy_text),
+            'technologies_detected': self.detect_technologies(policy_text, text_lower),
+            'google_cloud_info': self.extract_google_cloud_info(policy_text, text_lower),
             'api_references': self.extract_api_references(policy_text),
             'third_party_services': self.extract_third_party_services(policy_text),
             'data_sharing_mentions': self.detect_data_sharing(policy_text),

@@ -1,4 +1,34 @@
-@@ -18,75 +18,79 @@ Use this checklist when reviewing code for performance issues.
+# Code Performance Checklist
+
+A quick-reference checklist for identifying and fixing performance issues in
+Python-based AI/ML and NLP applications.
+
+## How to Use
+1. Work through each section systematically.
+2. For each item, check whether it applies to your code.
+3. Fix issues and re-check before marking as complete.
+4. Focus on high-impact changes first (see the triage score below).
+
+## Triage Score
+Rank optimization candidates before you start:
+```python
+# frequency: calls per request or per day
+# latency_ms: current cost per call
+# memory_mb: expected average memory reduction
+# effort_days: estimated implementation effort
+score = (frequency * latency_ms + 50 * memory_mb) / max(effort_days, 0.5)
+# Higher score = higher priority
+```
+
+## Stop Optimization Criteria
+Stop further optimization if **all** of the following are true:
+1. p95 latency improvement would be < 5 %
+2. Memory reduction < 10 MB steady-state
+3. Complexity would significantly increase
+4. No user-visible SLA improvement expected
+
+Use this checklist when reviewing code for performance issues.
+
 ---
 
 ## 🎯 Algorithm & Data Structures
@@ -47,8 +77,6 @@ total = sum(values)
 for i in range(n):
     result = math.sqrt(i)  # math looked up each iteration
 
-# ❌ Function call in condition
-for i in range(len(items)):  # len() called every iteration
 # ❌ Index-based loop when index is not needed
 for i in range(len(items)):
     process(items[i])
@@ -56,6 +84,14 @@ for i in range(len(items)):
 # ✅ Direct iteration
 for item in items:
     process(item)
+
+# ✅ Generator expression
+total = sum(expensive_func(x) for x in huge_list)
+
+# ✅ Cache module reference outside loop
+sqrt = math.sqrt
+for i in range(n):
+    result = sqrt(i)
 ```
 
 ---
@@ -81,12 +117,45 @@ for item in items:
 for item in dataset:
     pred = model.predict([item])
 
-@@ -225,53 +229,59 @@ for data in cpu_intensive_data:
+# ✅ Batch prediction
+preds = model.predict(dataset)
+
+# ❌ Python loop over NumPy array
+result = []
+for val in array:
+    result.append(val * 2)
+
+# ✅ Vectorized NumPy operation
+result = array * 2
+```
+
+---
+
+## ⚡ Concurrency & Parallelism
+
+### Thread/Process Safety
+- [ ] CPU-bound tasks use multiprocessing? (GIL blocks threads)
+- [ ] I/O-bound tasks use asyncio or threads?
+- [ ] Thread pools sized appropriately for workload?
+
+### Examples to Catch
+```python
+# ❌ Thread for CPU-bound work (GIL limits parallelism)
+for data in cpu_intensive_data:
+    t = threading.Thread(target=process, args=(data,))
     t.start()  # GIL prevents true parallelism
 
 # ❌ Sequential I/O operations
 for url in urls:
     data = requests.get(url).json()  # Could be concurrent
+
+# ✅ ProcessPoolExecutor for CPU-bound work
+with ProcessPoolExecutor() as pool:
+    results = list(pool.map(process, cpu_intensive_data))
+
+# ✅ ThreadPoolExecutor for I/O-bound work
+with ThreadPoolExecutor() as pool:
+    results = list(pool.map(fetch, urls))
 ```
 
 ---
@@ -107,7 +176,6 @@ for url in urls:
 
 ### Examples to Catch
 ```python
-# ❌ Regex compilation in loop
 # ❌ Dynamic regex compilation in loop
 for text in texts:
     pattern = re.compile(build_pattern(config))
@@ -116,7 +184,6 @@ for text in texts:
 # ✅ Compile once and reuse
 pattern = re.compile(build_pattern(config))
 for text in texts:
-    matches = re.findall(r'\b\w+\b', text)  # Pattern compiled each time
     matches = pattern.findall(text)
 
 # ❌ Sequential document processing
@@ -127,6 +194,9 @@ embeddings = []
 for doc in docs:
     emb = model.encode(doc)  # One at a time
     embeddings.append(emb)
+
+# ✅ Batch processing
+embeddings = model.encode(docs)  # All at once
 ```
 
 ---
@@ -143,3 +213,4 @@ for doc in docs:
 - [ ] Expensive imports in hot paths?
 - [ ] Heavy initialization in loops?
 - [ ] Lazy loading where appropriate?
+
