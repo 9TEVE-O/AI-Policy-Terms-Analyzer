@@ -48,16 +48,16 @@ stats = pstats.Stats(profiler)
 stats.sort_stats('cumulative')
 stats.print_stats(20)  # Top 20 slowest functions
 
-# line_profiler - Line-by-line profiling
-# Install: pip install line-profiler
+# line_profiler - Line-by-line profiling (optional, developer-only; not required to run the analyzer)
+# Optional install for developers: pip install line-profiler
 # Usage: @profile decorator and run with kernprof
 @profile
 def slow_function():
     # Your code
     pass
 
-# memory_profiler - Memory usage
-# Install: pip install memory-profiler
+# memory_profiler - Memory usage (optional, developer-only; not required to run the analyzer)
+# Optional install for developers: pip install memory-profiler
 from memory_profiler import profile
 
 @profile
