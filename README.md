@@ -358,5 +358,3 @@ From analyzing company policies, you can learn:
 Analysis results show you everything the company uses to run their business - all extracted from public legal documents they're required to provide!
 
 ---
-
-*Collect more data from your toilet than someone flipping through the Yellow Pages!* 📱
