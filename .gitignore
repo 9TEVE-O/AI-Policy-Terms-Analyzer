@@ -26,6 +26,9 @@ ENV/
 env/
 .venv
 
+# Node (not primary stack, but guard against accidental installs)
+node_modules/
+
 # IDE
 .vscode/
 .idea/
