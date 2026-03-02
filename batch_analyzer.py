@@ -17,8 +17,7 @@ def save_results(results, output_dir='analysis_results'):
     """Save all results to JSON files in a directory."""
     
     try:
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        os.makedirs(output_dir, exist_ok=True)
     except OSError as e:
         print(f"❌ Could not create directory '{output_dir}': {e}")
         return None

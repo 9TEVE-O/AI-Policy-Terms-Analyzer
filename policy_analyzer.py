@@ -16,7 +16,6 @@ import json
 import itertools
 from datetime import datetime
 from typing import Dict, List
-from collections import defaultdict
 
 
 class PolicyAnalyzer:
@@ -109,14 +108,11 @@ class PolicyAnalyzer:
     def detect_technologies(self, text: str) -> Dict[str, List[str]]:
         """Detect mentioned technologies by category."""
         text_lower = text.lower()
-        found_tech = defaultdict(set)
-        
-        for category, keywords in self.tech_keywords.items():
-            for keyword in keywords:
-                if keyword in text_lower:
-                    found_tech[category].add(keyword)
-        
-        return {category: list(keywords) for category, keywords in found_tech.items()}
+        return {
+            category: matched
+            for category, keywords in self.tech_keywords.items()
+            if (matched := [kw for kw in keywords if kw in text_lower])
+        }
     
     def extract_api_references(self, text: str) -> List[str]:
         """Extract API-related references."""
@@ -160,33 +156,15 @@ class PolicyAnalyzer:
             Dictionary with categorized Google Cloud information
         """
         text_lower = text.lower()
-        
-        gcp_info = {
-            'services': [],
-            'programs': [],
-            'certifications': []
-        }
-        
-        # Detect Google Cloud services using the predefined list
-        for service in self.gcp_services:
-            if service in text_lower:
-                gcp_info['services'].append(service)
-        
-        # Detect Google Cloud programs using the predefined list
-        for program in self.gcp_programs:
-            if program in text_lower:
-                gcp_info['programs'].append(program)
-        
-        # Detect Google Cloud certifications using pre-compiled regex patterns
-        for cert_re in self._gcp_cert_res:
-            matches = cert_re.findall(text)
-            gcp_info['certifications'].extend(matches)
-        
-        # Remove duplicates and return
+        certifications = [
+            m for cert_re in self._gcp_cert_res for m in cert_re.findall(text)
+        ]
         return {
-            'services': list(set(gcp_info['services'])),
-            'programs': list(set(gcp_info['programs'])),
-            'certifications': list(set(gcp_info['certifications']))
+            # gcp_services and gcp_programs are defined without duplicates in __init__,
+            # so no set() deduplication is needed here.
+            'services': [s for s in self.gcp_services if s in text_lower],
+            'programs': [p for p in self.gcp_programs if p in text_lower],
+            'certifications': list(set(certifications))
         }
     
     def analyze(self, policy_text: str, company_name: str = "Unknown") -> Dict:
