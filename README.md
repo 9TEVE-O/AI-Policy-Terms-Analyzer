@@ -74,6 +74,34 @@ print(f"GCP Certifications: {gcp_info['certifications']}")
 python test_google_cloud.py
 ```
 
+### Using the Key Point Condenser
+
+```python
+from key_point_condenser import KeyPointCondenser
+
+condenser = KeyPointCondenser()
+
+# Condense a long policy document
+policy_text = """Your long policy text here..."""
+result = condenser.condense(policy_text, title="Company Policy")
+
+# Get a human-readable report (abstract + summary + outline)
+print(condenser.format_report(result))
+
+# Or access individual outputs
+print(result['abstract'])   # 3-sentence overview
+print(result['summary'])    # Extractive summary
+print(result['outline'])    # Structured outline by section
+```
+
+```bash
+# Run the Key Point Condenser interactively
+python key_point_condenser.py
+
+# Run tests
+python test_key_point_condenser.py
+```
+
 ## 📋 Features
 
 ### 1. **URL & Domain Extraction**
@@ -107,7 +135,13 @@ Specifically identifies chatbots, automated systems, crawlers, and AI assistants
 ### 6. **Data Sharing Analysis**
 Extracts information about how and with whom companies share data.
 
-### 7. **Multiple Output Formats**
+### 7. **Key Point Condenser** ⭐ NEW
+Summarizes long policy documents and generates structured outputs:
+- **Abstract**: 3-sentence high-level overview of the document
+- **Summary**: Extractive summary of the most important sentences
+- **Outline**: Structured outline organized by detected section headings
+
+### 8. **Multiple Output Formats**
 - Human-readable formatted reports
 - JSON for programmatic processing
 - Batch analysis for multiple companies
