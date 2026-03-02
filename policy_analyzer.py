@@ -108,11 +108,18 @@ class PolicyAnalyzer:
     def detect_technologies(self, text: str) -> Dict[str, List[str]]:
         """Detect mentioned technologies by category."""
         text_lower = text.lower()
-        return {
-            category: matched
-            for category, keywords in self.tech_keywords.items()
-            if (matched := [kw for kw in keywords if kw in text_lower])
-        }
+        # Preserve stable keyword order while deduplicating matches per category.
+        results: Dict[str, List[str]] = {}
+        for category, keywords in self.tech_keywords.items():
+            seen = set()
+            matched: List[str] = []
+            for keyword in keywords:
+                if keyword in text_lower and keyword not in seen:
+                    matched.append(keyword)
+                    seen.add(keyword)
+            if matched:
+                results[category] = matched
+        return results
     
     def extract_api_references(self, text: str) -> List[str]:
         """Extract API-related references."""
