@@ -59,6 +59,51 @@ This repository contains a Python-based policy and terms analyzer that extracts 
 4. **Service Integration Discovery**: Third-party service identification
 5. **Multiple Output Formats**: JSON and formatted text reports
 
+## Non-Negotiables
+
+Copilot never merges "as-is" without verification:
+
+- Run **tests + lint + typecheck** locally before accepting any change.
+- No broad refactors unless explicitly requested.
+- No new dependencies unless it is the smallest way to meet a requirement — state why.
+- No secrets, PII, credentials, or sensitive data in prompts, comments, logs, or tests.
+
+**Done = tests pass + lint clean + typecheck clean.**
+
+## Control Loop
+
+### Option A — TDD (default)
+
+1. Write a failing test covering the requirement plus 2–3 edge cases.
+2. Ask Copilot for the minimal implementation that satisfies the tests.
+3. Run the tests.
+4. Refactor in small steps.
+5. Re-run tests + lint + typecheck.
+
+### Option B — Spec-first (only when tests are hard to write upfront)
+
+1. Write a mini-spec with acceptance criteria.
+2. Ask Copilot for a skeleton with stubs.
+3. Add tests.
+4. Implement until tests pass.
+
+> **Hard stop**: if no verifier (tests / types / lint) is running, Copilot is guessing.
+
+## Context Discipline
+
+Always open a Copilot Chat session or paste a **Context Pack** at the top of the relevant file:
+
+```
+# Goal: <one sentence>
+# Inputs/outputs: <types + 1 example>
+# Constraints: <perf, security, backwards compat>
+# Must-use / must-not-use: <libs or patterns>
+# Error policy: <throw vs Result; retry rules>
+# Logging policy: <what must NOT be logged>
+```
+
+Providing this context reduces hallucinations and incorrect suggestions.
+
 ## Development Guidelines
 
 ### Adding New Features
@@ -68,16 +113,18 @@ This repository contains a Python-based policy and terms analyzer that extracts 
 - Add examples to `example_usage.py` for new features
 
 ### Testing
-- Test with sample policy texts that include edge cases
+- Follow the TDD control loop above (write tests first)
+- Include at least 2–3 edge cases per new test
 - Verify detection is case-insensitive
 - Test JSON output format remains consistent
-- Run existing test files to ensure no regression
+- Run all test files to ensure no regression: `python -m pytest test_google_cloud.py test_ai_operator_os.py test_key_point_condenser.py -v`
 
 ### Security & Best Practices
 - Validate and sanitize all user inputs
 - Avoid executing arbitrary code from policy text
 - Be mindful of potential ReDoS (Regular Expression Denial of Service) attacks with complex regex patterns
 - Don't store sensitive company data in the repository
+- Never include secrets, API keys, credentials, or PII in code, tests, logs, or comments
 - Use safe JSON handling practices
 
 ### Code Quality
@@ -123,14 +170,20 @@ def analyze_new_feature(self, text: str) -> Dict:
 ## Helpful Commands
 
 ```bash
+# Run all tests
+python -m pytest test_google_cloud.py test_ai_operator_os.py test_key_point_condenser.py -v
+
+# Lint (errors only — fails build)
+flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+# Lint (style warnings — informational)
+flake8 . --count --max-line-length=120 --statistics --exit-zero
+
 # Run the main analyzer interactively
 python policy_analyzer.py
 
 # Run examples
 python example_usage.py
-
-# Test Google Cloud detection
-python test_google_cloud.py
 
 # Batch analyze multiple companies
 python batch_analyzer.py
@@ -138,12 +191,12 @@ python batch_analyzer.py
 
 ## When Making Changes
 
-1. **Understand the context**: Review existing code patterns before adding new features
-2. **Maintain consistency**: Follow the established code style and structure
-3. **Test thoroughly**: Run existing test scripts to ensure nothing breaks
-4. **Update documentation**: Update README.md and relevant docs when adding features
-5. **Keep it simple**: This tool uses standard library intentionally - avoid adding heavy dependencies unless absolutely necessary
-6. **Think about users**: Many users are non-technical - keep the interface simple and error messages clear
+1. **Follow the TDD control loop** above before writing any implementation code.
+2. **Provide a Context Pack** at the top of the Copilot Chat session or file being edited.
+3. **Maintain consistency**: follow the established code style and structure.
+4. **Update documentation**: update README.md and relevant docs when adding user-facing features.
+5. **Keep it simple**: standard library only — no new dependencies without a stated reason.
+6. **Think about users**: many users are non-technical — keep the interface simple and error messages clear.
 
 ## Remember
 

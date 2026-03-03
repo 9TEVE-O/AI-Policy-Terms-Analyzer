@@ -34,4 +34,4 @@ jobs:
           flake8 . --count --max-line-length=120 --statistics --exit-zero
 
       - name: Run tests
-        run: python -m pytest test_google_cloud.py -v
+        run: python -m pytest test_google_cloud.py test_ai_operator_os.py test_key_point_condenser.py -v
