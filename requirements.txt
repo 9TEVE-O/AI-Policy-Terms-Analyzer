@@ -1,7 +1,12 @@
 # Python requirements for Policy Analyzer Assistant
 # No external dependencies required - uses only Python standard library
-# 
+#
 # Optional dependencies for enhanced functionality:
-# beautifulsoup4>=4.12.0  # For HTML parsing if analyzing web pages
-# requests>=2.31.0         # For fetching policies from URLs
-# pdfplumber>=0.10.0      # For extracting text from PDF policies
+# Uncomment and install with:  pip install beautifulsoup4 requests pdfplumber
+#
+# beautifulsoup4>=4.12.0  # Richer HTML extraction in DocumentScanner.scan_html_content()
+# requests>=2.31.0        # Better HTTP handling in DocumentScanner.scan_url()
+# pdfplumber>=0.10.0      # PDF text extraction in DocumentScanner.scan_pdf()
+#
+# The tools work without these packages using standard-library fallbacks,
+# except for PDF scanning which requires pdfplumber.
