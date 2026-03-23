@@ -86,6 +86,100 @@ class PolicyAnalyzer:
         ]
         self._gcp_cert_res = [re.compile(p, re.IGNORECASE) for p in self.gcp_cert_patterns]
 
+        # Privacy concern patterns: (compiled_regex, description, severity)
+        # Severity levels: 'high', 'medium', 'low'
+        self._concern_patterns = [
+            # HIGH severity
+            (re.compile(r'\bsell\s+(?:your\s+)?(?:personal\s+)?(?:information|data)\b', re.IGNORECASE),
+             'May sell your personal information to third parties', 'high'),
+            (re.compile(r'\bsold\s+(?:to\s+)?(?:third\s+part|advertiser|partner)', re.IGNORECASE),
+             'Data may be sold to third parties or advertisers', 'high'),
+            (re.compile(
+                r'(?:targeted|interest[\s-]based|behavioral)\s+(?:advertising|ads|marketing)',
+                re.IGNORECASE),
+             'Uses targeted behavioral advertising', 'high'),
+            (re.compile(r'\bprecise\s+(?:geo)?location\b', re.IGNORECASE),
+             'Collects your precise location data', 'high'),
+            (re.compile(r'cross[\s-]site\s+(?:tracking|advertising)', re.IGNORECASE),
+             'Performs cross-site tracking of your activity', 'high'),
+            # MEDIUM severity
+            (re.compile(
+                r'(?:share|disclose|transfer)\s+(?:\w+\s+){0,5}?(?:data|information)\s+'
+                r'(?:with|to)\s+(?:our\s+)?(?:affiliates?|subsidiaries|group\s+compan)',
+                re.IGNORECASE),
+             'Shares your data with corporate affiliates and subsidiaries', 'medium'),
+            (re.compile(r'\badvertising\s+partners?\b', re.IGNORECASE),
+             'Shares your data with advertising partners', 'medium'),
+            (re.compile(
+                r'for\s+(?:as\s+long\s+as|the\s+duration\s+of)\s+(?:we\s+)?(?:deem\s+)?necessary'
+                r'|\bretain\s+(?:your\s+)?(?:data|information)\s+indefinitely\b',
+                re.IGNORECASE),
+             'May retain your data for an unspecified or indefinite period', 'medium'),
+            (re.compile(
+                r'\bbuild(?:ing)?\s+a\s+(?:profile|record)\s+(?:of|about)\s+(?:you|users?)\b',
+                re.IGNORECASE),
+             'Builds a detailed profile about you', 'medium'),
+            (re.compile(r'\bcannot\s+opt[\s-]out\b|\bno\s+opt[\s-]out\b', re.IGNORECASE),
+             'Limited or no opt-out options available', 'medium'),
+            # LOW severity
+            (re.compile(
+                r'\b(?:law\s+enforcement|government\s+(?:agenc|official|request)|'
+                r'court\s+order|legal\s+process|subpoena)\b',
+                re.IGNORECASE),
+             'May share your data with government or law enforcement', 'low'),
+            (re.compile(
+                r'\b(?:merger|acquisition|sale\s+of\s+(?:assets|business|company))\b',
+                re.IGNORECASE),
+             'Your data may be transferred in a merger or acquisition', 'low'),
+            (re.compile(
+                r'we\s+(?:may\s+)?(?:change|update|modify|revise)\s+(?:this|our|these)\s+'
+                r'(?:policy|terms|agreement|notice)\s+(?:at\s+any\s+time|without\s+notice)',
+                re.IGNORECASE),
+             'Policy may be changed at any time without notice', 'low'),
+        ]
+
+        # Data sharing purpose patterns: (compiled_regex, purpose_description)
+        self._purpose_res = [
+            (re.compile(r'\b(?:analytics?|telemetry|usage\s+(?:data|statistics))\b', re.IGNORECASE),
+             'Usage analytics and telemetry'),
+            (re.compile(r'\badvertis(?:ing|ements?|ers?)\b', re.IGNORECASE),
+             'Advertising and marketing'),
+            (re.compile(
+                r'\bpayment\s+(?:processing|providers?|services?)\b'
+                r'|\bfinancial\s+(?:transactions?|services?)\b',
+                re.IGNORECASE),
+             'Payment processing'),
+            (re.compile(
+                r'\bcustomer\s+(?:support|service|care)\b|\bhelp\s+(?:desk|center)\b',
+                re.IGNORECASE),
+             'Customer support services'),
+            (re.compile(r'\b(?:social\s+(?:media|network|platform))\b', re.IGNORECASE),
+             'Social media platforms'),
+            (re.compile(
+                r'\bcloud\s+(?:storage|hosting|infrastructure|services?)\b'
+                r'|\bhosting\s+(?:providers?|services?)\b',
+                re.IGNORECASE),
+             'Cloud hosting and infrastructure'),
+            (re.compile(
+                r'\bemail\s+(?:service|marketing|providers?|delivery)\b'
+                r'|\bmarketing\s+(?:emails?|campaigns?|communications?)\b',
+                re.IGNORECASE),
+             'Email services and marketing'),
+            (re.compile(
+                r'\bfraud\s+(?:detection|prevention)\b|\bsecurity\s+(?:monitoring|services?)\b',
+                re.IGNORECASE),
+             'Security and fraud prevention'),
+            (re.compile(
+                r'\bresearch\s+(?:partners?|purposes?|projects?)\b|\bacademic\s+research\b',
+                re.IGNORECASE),
+             'Research and analytics purposes'),
+            (re.compile(
+                r'\b(?:artificial\s+intelligence|machine\s+learning)\s+'
+                r'(?:processing|training|models?)\b',
+                re.IGNORECASE),
+             'AI and machine learning processing'),
+        ]
+
     def extract_urls(self, text: str) -> List[str]:
         """Extract all URLs from the text."""
         urls = self._url_re.findall(text)
@@ -152,6 +246,135 @@ class PolicyAnalyzer:
         
         return list(set(sharing_info))[:15]
     
+    def detect_privacy_concerns(self, text: str) -> Dict[str, List[str]]:
+        """
+        Detect privacy concerns and red flags categorized by severity.
+
+        Scans the policy text for patterns indicating potential privacy issues
+        and returns them grouped by severity level.
+
+        Args:
+            text: The policy text to analyze.
+
+        Returns:
+            Dictionary with 'high', 'medium', 'low' severity keys, each
+            mapping to a list of concern descriptions found in the text.
+            Only non-empty severity categories are included.
+        """
+        concerns: Dict[str, List[str]] = {}
+        for pattern, description, severity in self._concern_patterns:
+            if pattern.search(text):
+                bucket = concerns.setdefault(severity, [])
+                if description not in bucket:
+                    bucket.append(description)
+        return concerns
+
+    def detect_data_destinations(self, text: str) -> Dict[str, List[str]]:
+        """
+        Extract specific data destinations — where user data is shared or sent.
+
+        Args:
+            text: The policy text to analyze.
+
+        Returns:
+            Dictionary with:
+              'recipients' — named entities/phrases that receive user data (up to 15).
+              'purposes'   — functional categories describing why data is shared.
+        """
+        seen: set = set()
+        recipients: List[str] = []
+        for pattern in self._sharing_res:
+            for m in pattern.finditer(text):
+                snippet = m.group(1).strip() if m.lastindex else ""
+                # Filter out too-short noise and overly-long run-on excerpts
+                if 5 < len(snippet) < 80 and snippet not in seen:
+                    seen.add(snippet)
+                    recipients.append(snippet)
+
+        purposes = [desc for p_re, desc in self._purpose_res if p_re.search(text)]
+
+        return {
+            'recipients': recipients[:15],
+            'purposes': purposes,
+        }
+
+    def generate_user_summary(self, analysis: Dict) -> str:
+        """
+        Generate a user-friendly privacy summary from the analysis.
+
+        Presents the key findings in plain English, focusing on where user
+        data goes and what to be cautious about.
+
+        Args:
+            analysis: The output from analyze().
+
+        Returns:
+            A formatted, easy-to-read summary string.
+        """
+        lines = []
+        lines.append("=" * 80)
+        lines.append(f"PRIVACY SUMMARY: {analysis['company_name']}")
+        lines.append("=" * 80)
+        lines.append("")
+
+        # WHERE YOUR DATA GOES
+        lines.append("WHERE YOUR DATA GOES:")
+        lines.append("-" * 40)
+        destinations = analysis.get('data_destinations', {})
+        purposes = destinations.get('purposes', [])
+        recipients = destinations.get('recipients', [])
+
+        if purposes:
+            for purpose in purposes:
+                lines.append(f"  * {purpose}")
+        if recipients:
+            # Show up to 8 recipients to keep summary concise
+            for r in recipients[:8]:
+                lines.append(f"  * {r}")
+        if not purposes and not recipients:
+            sharing = analysis.get('data_sharing_mentions', [])
+            if sharing:
+                # Limit to 5 mentions for readability; truncate long mentions to fit
+                for mention in sharing[:5]:
+                    lines.append(f"  * {mention[:80]}")
+            else:
+                lines.append("  No specific data sharing destinations identified.")
+        lines.append("")
+
+        # WHAT TO BE WARY OF
+        concerns = analysis.get('privacy_concerns', {})
+        lines.append("WHAT TO BE WARY OF:")
+        lines.append("-" * 40)
+        if concerns:
+            severity_labels = {
+                'high': '[HIGH CONCERN]',
+                'medium': '[MEDIUM CONCERN]',
+                'low': '[LOW CONCERN]',
+            }
+            for severity in ['high', 'medium', 'low']:
+                for concern in concerns.get(severity, []):
+                    lines.append(f"  {severity_labels[severity]} {concern}")
+        else:
+            lines.append("  No major privacy concerns detected in this document.")
+        lines.append("")
+
+        # TECHNOLOGIES PROCESSING YOUR DATA
+        techs = analysis.get('technologies_detected', {})
+        notable: List[str] = []
+        for cat in ['services', 'ai_ml', 'platforms']:
+            notable.extend(techs.get(cat, []))
+
+        if notable:
+            lines.append("TECHNOLOGIES PROCESSING YOUR DATA:")
+            lines.append("-" * 40)
+            for tech in notable[:10]:
+                lines.append(f"  * {tech}")
+            lines.append("")
+
+        lines.append(f"Document analyzed: {analysis['word_count']:,} words")
+        lines.append("=" * 80)
+        return "\n".join(lines)
+
     def extract_google_cloud_info(self, text: str) -> Dict[str, List[str]]:
         """
         Extract detailed Google Cloud information including services, programs, and certifications.
@@ -196,6 +419,8 @@ class PolicyAnalyzer:
             'api_references': self.extract_api_references(policy_text),
             'third_party_services': self.extract_third_party_services(policy_text),
             'data_sharing_mentions': self.detect_data_sharing(policy_text),
+            'privacy_concerns': self.detect_privacy_concerns(policy_text),
+            'data_destinations': self.detect_data_destinations(policy_text),
             'document_length': len(policy_text),
             'word_count': len(policy_text.split())
         }
@@ -215,6 +440,27 @@ class PolicyAnalyzer:
         report.append(f"  - Length: {analysis['document_length']:,} characters")
         report.append(f"  - Word Count: {analysis['word_count']:,} words")
         report.append("")
+
+        # Privacy concerns (shown prominently before other details)
+        concerns = analysis.get('privacy_concerns', {})
+        if concerns:
+            total = sum(len(v) for v in concerns.values())
+            report.append(f"Privacy Concerns Detected ({total}):")
+            severity_labels = {'high': '[HIGH]', 'medium': '[MEDIUM]', 'low': '[LOW]'}
+            for severity in ['high', 'medium', 'low']:
+                for concern in concerns.get(severity, []):
+                    report.append(f"  {severity_labels[severity]} {concern}")
+            report.append("")
+
+        # Data destinations
+        destinations = analysis.get('data_destinations', {})
+        if destinations and (destinations.get('purposes') or destinations.get('recipients')):
+            report.append("Data Destinations:")
+            for purpose in destinations.get('purposes', []):
+                report.append(f"  - {purpose}")
+            for recipient in destinations.get('recipients', [])[:5]:
+                report.append(f"  - {recipient}")
+            report.append("")
         
         # URLs
         if analysis['urls_found']:
