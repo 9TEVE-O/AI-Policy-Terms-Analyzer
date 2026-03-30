@@ -1,0 +1,60 @@
+name: "CodeQL Debugging"
+
+on:
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  debug:
+    name: CodeQL Debug Job
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write # Required for CodeQL analysis
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'javascript' ] # Supports: c-cpp, csharp, go, java-kotlin, javascript-typescript, python, ruby, swift
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        id: codeqlinit
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # OFFICIAL DEBUGGING: This creates a 'debug-artifacts' zip with 
+          # logs, database, and SARIF files if the run fails or completes.
+          debug: true 
+
+      # If your JS project requires a specific build (e.g., minification) 
+      # you might need an autobuild or manual build step here.
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          # Enable diagnostic logging for more detailed CLI output
+          upload-database: true
+
+      # Optional: Keep the third-party debug action if you specifically need the HTML report.
+      # Note: This action is older and may have compatibility issues with newer CodeQL CLI versions.
+      - name: Generate HTML Debug Report
+        uses: zbazztian/codeql-debug@master
+        if: always() # Ensure this runs even if analysis fails
+        with:
+          language: ${{ matrix.language }}
+
+      - name: Upload Debug Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: codeql-debug-results-${{ matrix.language }}
+          path: |
+            codeql-debug-results
+            results/*.sarif
+          retention-days: 7
