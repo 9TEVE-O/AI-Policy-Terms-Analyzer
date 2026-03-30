@@ -304,22 +304,22 @@ class DocumentScanner:
         """Fetch URL content using requests (if available) or urllib."""
         if _HAS_REQUESTS:
             import requests
-            response = requests.get(
+            with requests.get(
                 url,
                 timeout=self._URL_TIMEOUT,
                 headers={'User-Agent': self._USER_AGENT},
                 stream=True,
-            )
-            response.raise_for_status()
-            # Read up to _MAX_URL_BYTES to avoid massive downloads
-            content = b''
-            for chunk in response.iter_content(chunk_size=8192):
-                content += chunk
-                if len(content) >= self._MAX_URL_BYTES:
-                    break
-            return content.decode(
-                response.encoding or 'utf-8', errors='replace'
-            )
+            ) as response:
+                response.raise_for_status()
+                # Read up to _MAX_URL_BYTES to avoid massive downloads
+                content = b''
+                for chunk in response.iter_content(chunk_size=8192):
+                    content += chunk
+                    if len(content) >= self._MAX_URL_BYTES:
+                        break
+                return content.decode(
+                    response.encoding or 'utf-8', errors='replace'
+                )
         else:
             req = urllib.request.Request(
                 url, headers={'User-Agent': self._USER_AGENT}
