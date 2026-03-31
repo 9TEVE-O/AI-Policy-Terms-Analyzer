@@ -306,16 +306,15 @@ def test_get_document_info_pdf_no_pdfplumber():
     original = ds_module._HAS_PDFPLUMBER
 
     ds_module._HAS_PDFPLUMBER = False
-    scanner = DocumentScanner()
-    # Use a non-existent path — get_document_info should not open the file
-    info = scanner.get_document_info('/tmp/nonexistent_test.pdf')
-    assert info['extension'] == '.pdf'
-    assert info['scanner_available'] is False
-
-    ds_module._HAS_PDFPLUMBER = original
-    print("✓ test_get_document_info_pdf_no_pdfplumber passed")
-
-
+    try:
+        scanner = DocumentScanner()
+        # Use a non-existent path — get_document_info should not open the file
+        info = scanner.get_document_info('/tmp/nonexistent_test.pdf')
+        assert info['extension'] == '.pdf'
+        assert info['scanner_available'] is False
+        print("✓ test_get_document_info_pdf_no_pdfplumber passed")
+    finally:
+        ds_module._HAS_PDFPLUMBER = original
 # ---------------------------------------------------------------------------
 # DocumentScanner — _clean_text
 # ---------------------------------------------------------------------------
