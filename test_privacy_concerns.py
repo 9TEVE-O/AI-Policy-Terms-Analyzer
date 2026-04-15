@@ -357,6 +357,454 @@ def test_format_report_omits_empty_sections():
 
 
 # ---------------------------------------------------------------------------
+# Sample texts for new feature tests
+# ---------------------------------------------------------------------------
+
+POLICY_WITH_REPOS = """
+Terms of Service - OpenSourceCo
+
+Our SDK is hosted at https://github.com/opensourceco/sdk and documentation
+lives at https://gitlab.com/opensourceco/docs. We also maintain a public
+mirror on https://bitbucket.org/opensourceco/mirror.
+Please refer to GitHub for all issue tracking.
+"""
+
+POLICY_WITH_APIS = """
+Terms of Service - APIFirst Inc.
+
+Our RESTful API is available at https://api.apifirst.com/v2/users.
+We support GraphQL queries at https://api.apifirst.com/graphql.
+Authentication uses OAuth 2.0 and API keys issued per account.
+Webhooks notify your endpoint on account events.
+We provide SDKs for popular languages.
+"""
+
+POLICY_WITH_BOTS = """
+Terms of Service - AutoBot Ltd.
+
+We deploy automated crawlers to index public web content.
+Our chatbot is powered by GPT technology.
+Web scraping of our content is prohibited without prior consent.
+Scheduled jobs run nightly data exports.
+RPA workflows process high-volume transactions.
+"""
+
+POLICY_WITH_THIRD_PARTY = """
+Privacy Policy - MarketingPlatform Inc.
+
+We use Stripe and PayPal for payment processing.
+Analytics are provided by Google Analytics and Mixpanel.
+Emails are sent via SendGrid and Mailchimp.
+Our CDN infrastructure is handled by Cloudflare.
+Customer support is powered by Zendesk.
+We show advertisements via Google Ads and DoubleClick.
+"""
+
+POLICY_WITH_DATA_SHARING = """
+Privacy Policy - DataSharing Corp.
+
+We share personal data and browsing history with third parties.
+We disclose contact information and device data to advertisers.
+Business partners and service providers receive usage data.
+Law enforcement may receive your financial data upon request.
+Our affiliates and subsidiaries have access to location data.
+"""
+
+
+# ---------------------------------------------------------------------------
+# Tests: extract_websites_and_domains
+# ---------------------------------------------------------------------------
+
+def test_websites_and_domains_extracts_urls():
+    """Should extract full URLs into the 'urls' list."""
+    analyzer = PolicyAnalyzer()
+    text = "Visit https://example.com/privacy and http://test.org/terms for details."
+    result = analyzer.extract_websites_and_domains(text)
+    assert 'urls' in result, "Result should have 'urls' key"
+    assert isinstance(result['urls'], list), "'urls' should be a list"
+    assert len(result['urls']) >= 2, "Should find at least 2 URLs"
+    assert any('example.com' in u for u in result['urls']), "Should find example.com URL"
+    print("✓ test_websites_and_domains_extracts_urls passed")
+
+
+def test_websites_and_domains_extracts_domains():
+    """Should extract domain names into the 'domains' list."""
+    analyzer = PolicyAnalyzer()
+    text = "Our partner is partner.io and we use service.example.net regularly."
+    result = analyzer.extract_websites_and_domains(text)
+    assert 'domains' in result, "Result should have 'domains' key"
+    assert isinstance(result['domains'], list), "'domains' should be a list"
+    print("✓ test_websites_and_domains_extracts_domains passed")
+
+
+def test_websites_and_domains_empty_input():
+    """Empty text should return empty lists."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_websites_and_domains("")
+    assert result['urls'] == [], "Empty text should yield empty urls"
+    assert result['domains'] == [], "Empty text should yield empty domains"
+    print("✓ test_websites_and_domains_empty_input passed")
+
+
+# ---------------------------------------------------------------------------
+# Tests: extract_repositories
+# ---------------------------------------------------------------------------
+
+def test_repositories_detects_github_url():
+    """Should detect a GitHub repository URL."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_repositories(POLICY_WITH_REPOS)
+    assert 'repo_urls' in result, "Result should have 'repo_urls' key"
+    assert any('github.com' in u for u in result['repo_urls']), \
+        "Should detect GitHub URL"
+    print("✓ test_repositories_detects_github_url passed")
+
+
+def test_repositories_detects_gitlab_url():
+    """Should detect a GitLab repository URL."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_repositories(POLICY_WITH_REPOS)
+    assert any('gitlab.com' in u for u in result['repo_urls']), \
+        "Should detect GitLab URL"
+    print("✓ test_repositories_detects_gitlab_url passed")
+
+
+def test_repositories_detects_keyword_mentions():
+    """Should capture keyword mentions of GitHub/GitLab in repo_mentions."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_repositories(POLICY_WITH_REPOS)
+    assert 'repo_mentions' in result, "Result should have 'repo_mentions' key"
+    assert isinstance(result['repo_mentions'], list), "'repo_mentions' should be a list"
+    print("✓ test_repositories_detects_keyword_mentions passed")
+
+
+def test_repositories_empty_input():
+    """Empty text should return empty repo lists."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_repositories("")
+    assert result['repo_urls'] == [], "Empty text should yield empty repo_urls"
+    assert result['repo_mentions'] == [], "Empty text should yield empty repo_mentions"
+    print("✓ test_repositories_empty_input passed")
+
+
+# ---------------------------------------------------------------------------
+# Tests: extract_third_party_services_categorised
+# ---------------------------------------------------------------------------
+
+def test_third_party_detects_payment_processors():
+    """Should detect Stripe and PayPal as payment processors."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_third_party_services_categorised(POLICY_WITH_THIRD_PARTY)
+    assert 'payment_processors' in result, "Should detect payment_processors category"
+    assert 'stripe' in result['payment_processors'], "Should detect Stripe"
+    assert 'paypal' in result['payment_processors'], "Should detect PayPal"
+    print("✓ test_third_party_detects_payment_processors passed")
+
+
+def test_third_party_detects_analytics_platforms():
+    """Should detect Google Analytics and Mixpanel as analytics platforms."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_third_party_services_categorised(POLICY_WITH_THIRD_PARTY)
+    assert 'analytics_platforms' in result, "Should detect analytics_platforms category"
+    assert 'google analytics' in result['analytics_platforms'], "Should detect Google Analytics"
+    assert 'mixpanel' in result['analytics_platforms'], "Should detect Mixpanel"
+    print("✓ test_third_party_detects_analytics_platforms passed")
+
+
+def test_third_party_detects_email_services():
+    """Should detect SendGrid and Mailchimp as email services."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_third_party_services_categorised(POLICY_WITH_THIRD_PARTY)
+    assert 'email_services' in result, "Should detect email_services category"
+    assert 'sendgrid' in result['email_services'], "Should detect SendGrid"
+    assert 'mailchimp' in result['email_services'], "Should detect Mailchimp"
+    print("✓ test_third_party_detects_email_services passed")
+
+
+def test_third_party_returns_dict_of_lists():
+    """Return type should be a dict mapping strings to lists of strings."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_third_party_services_categorised(POLICY_WITH_THIRD_PARTY)
+    assert isinstance(result, dict), "Should return a dict"
+    for cat, services in result.items():
+        assert isinstance(services, list), f"Category '{cat}' should map to a list"
+        for svc in services:
+            assert isinstance(svc, str), "Each service name should be a string"
+    print("✓ test_third_party_returns_dict_of_lists passed")
+
+
+def test_third_party_empty_input_returns_empty_dict():
+    """Empty text should return an empty dict."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_third_party_services_categorised("")
+    assert result == {}, f"Empty text should return empty dict, got {result}"
+    print("✓ test_third_party_empty_input_returns_empty_dict passed")
+
+
+# ---------------------------------------------------------------------------
+# Tests: extract_apis_and_integrations
+# ---------------------------------------------------------------------------
+
+def test_apis_detects_rest():
+    """Should detect REST API mention."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_apis_and_integrations(POLICY_WITH_APIS)
+    assert 'api_types' in result, "Result should have 'api_types' key"
+    assert 'REST API' in result['api_types'], "Should detect REST API"
+    print("✓ test_apis_detects_rest passed")
+
+
+def test_apis_detects_graphql():
+    """Should detect GraphQL mention."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_apis_and_integrations(POLICY_WITH_APIS)
+    assert 'GraphQL' in result['api_types'], "Should detect GraphQL"
+    print("✓ test_apis_detects_graphql passed")
+
+
+def test_apis_detects_webhooks():
+    """Should detect webhook mention."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_apis_and_integrations(POLICY_WITH_APIS)
+    assert 'Webhooks' in result['api_types'], "Should detect Webhooks"
+    print("✓ test_apis_detects_webhooks passed")
+
+
+def test_apis_detects_oauth():
+    """Should detect OAuth mention."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_apis_and_integrations(POLICY_WITH_APIS)
+    assert 'OAuth' in result['api_types'], "Should detect OAuth"
+    print("✓ test_apis_detects_oauth passed")
+
+
+def test_apis_extracts_endpoint_urls():
+    """Should extract explicit API endpoint URLs."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_apis_and_integrations(POLICY_WITH_APIS)
+    assert 'api_urls' in result, "Result should have 'api_urls' key"
+    assert isinstance(result['api_urls'], list), "'api_urls' should be a list"
+    assert len(result['api_urls']) > 0, "Should extract at least one API URL"
+    print("✓ test_apis_extracts_endpoint_urls passed")
+
+
+def test_apis_empty_input():
+    """Empty text should return empty API detection."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_apis_and_integrations("")
+    assert result['api_types'] == [], "Empty text should yield no api_types"
+    assert result['api_urls'] == [], "Empty text should yield no api_urls"
+    print("✓ test_apis_empty_input passed")
+
+
+# ---------------------------------------------------------------------------
+# Tests: extract_bots_and_automation
+# ---------------------------------------------------------------------------
+
+def test_bots_detects_chatbot():
+    """Should detect chatbot mention."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_bots_and_automation(POLICY_WITH_BOTS)
+    assert 'Chatbot' in result, "Should detect 'Chatbot'"
+    print("✓ test_bots_detects_chatbot passed")
+
+
+def test_bots_detects_crawler():
+    """Should detect web crawler mention."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_bots_and_automation(POLICY_WITH_BOTS)
+    assert 'Web crawler / spider' in result, "Should detect 'Web crawler / spider'"
+    print("✓ test_bots_detects_crawler passed")
+
+
+def test_bots_detects_scraping():
+    """Should detect data scraping mention."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_bots_and_automation(POLICY_WITH_BOTS)
+    assert 'Data scraping' in result, "Should detect 'Data scraping'"
+    print("✓ test_bots_detects_scraping passed")
+
+
+def test_bots_returns_sorted_list():
+    """Should return a sorted list of strings."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_bots_and_automation(POLICY_WITH_BOTS)
+    assert isinstance(result, list), "Should return a list"
+    for item in result:
+        assert isinstance(item, str), "Each item should be a string"
+    assert result == sorted(result), "List should be sorted alphabetically"
+    print("✓ test_bots_returns_sorted_list passed")
+
+
+def test_bots_empty_input():
+    """Empty text should return an empty list."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_bots_and_automation("")
+    assert result == [], f"Empty text should return empty list, got {result}"
+    print("✓ test_bots_empty_input passed")
+
+
+# ---------------------------------------------------------------------------
+# Tests: extract_data_sharing_summary
+# ---------------------------------------------------------------------------
+
+def test_data_sharing_detects_third_parties():
+    """Should identify 'Third parties' as a data recipient."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_data_sharing_summary(POLICY_WITH_DATA_SHARING)
+    assert 'shared_with' in result, "Result should have 'shared_with' key"
+    assert 'Third parties' in result['shared_with'], "Should detect 'Third parties'"
+    print("✓ test_data_sharing_detects_third_parties passed")
+
+
+def test_data_sharing_detects_advertisers():
+    """Should identify 'Advertisers' as a data recipient."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_data_sharing_summary(POLICY_WITH_DATA_SHARING)
+    assert 'Advertisers' in result['shared_with'], "Should detect 'Advertisers'"
+    print("✓ test_data_sharing_detects_advertisers passed")
+
+
+def test_data_sharing_detects_data_types():
+    """Should identify data types being shared."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_data_sharing_summary(POLICY_WITH_DATA_SHARING)
+    assert 'data_types' in result, "Result should have 'data_types' key"
+    assert len(result['data_types']) > 0, "Should detect at least one data type"
+    print("✓ test_data_sharing_detects_data_types passed")
+
+
+def test_data_sharing_detects_purposes():
+    """Should identify purposes of data sharing."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_data_sharing_summary(POLICY_WITH_DATA_SHARING)
+    assert 'purposes' in result, "Result should have 'purposes' key"
+    assert isinstance(result['purposes'], list), "'purposes' should be a list"
+    print("✓ test_data_sharing_detects_purposes passed")
+
+
+def test_data_sharing_return_type():
+    """extract_data_sharing_summary should return a dict with three list keys."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_data_sharing_summary(POLICY_WITH_DATA_SHARING)
+    assert isinstance(result, dict), "Should return a dict"
+    for key in ('shared_with', 'data_types', 'purposes'):
+        assert key in result, f"Dict should contain key '{key}'"
+        assert isinstance(result[key], list), f"'{key}' should be a list"
+    print("✓ test_data_sharing_return_type passed")
+
+
+def test_data_sharing_empty_input():
+    """Empty text should return empty lists for all three keys."""
+    analyzer = PolicyAnalyzer()
+    result = analyzer.extract_data_sharing_summary("")
+    for key in ('shared_with', 'data_types', 'purposes'):
+        assert result[key] == [], f"Empty text: '{key}' should be empty"
+    print("✓ test_data_sharing_empty_input passed")
+
+
+# ---------------------------------------------------------------------------
+# Tests: analyze() integration for new features
+# ---------------------------------------------------------------------------
+
+def test_analyze_includes_new_feature_keys():
+    """analyze() should include all six new extraction keys."""
+    analyzer = PolicyAnalyzer()
+    text = "We use GitHub. Stripe processes payments. Our REST API uses webhooks."
+    result = analyzer.analyze(text, "TestCo")
+    for key in ('websites_and_domains', 'repositories', 'third_party_services_categorised',
+                'apis_and_integrations', 'bots_and_automation', 'data_sharing_summary'):
+        assert key in result, f"analyze() result should contain '{key}'"
+    print("✓ test_analyze_includes_new_feature_keys passed")
+
+
+def test_analyze_new_features_json_serializable():
+    """New feature fields should be JSON-serializable."""
+    import json as _json
+    analyzer = PolicyAnalyzer()
+    text = "GitHub repo. Stripe payments. REST API. Chatbot. Third-party data sharing."
+    result = analyzer.analyze(text, "TestCo")
+    new_keys = ('websites_and_domains', 'repositories', 'third_party_services_categorised',
+                'apis_and_integrations', 'bots_and_automation', 'data_sharing_summary')
+    for key in new_keys:
+        try:
+            _json.dumps(result[key])
+        except TypeError as exc:
+            raise AssertionError(f"Field '{key}' is not JSON-serializable: {exc}")
+    print("✓ test_analyze_new_features_json_serializable passed")
+
+
+# ---------------------------------------------------------------------------
+# Tests: format_report() sections for new features
+# ---------------------------------------------------------------------------
+
+def test_format_report_includes_websites_section():
+    """format_report should include a 'Websites & Domains' section when URLs present."""
+    analyzer = PolicyAnalyzer()
+    text = "Visit https://example.com for details."
+    result = analyzer.analyze(text, "TestCo")
+    report = analyzer.format_report(result)
+    assert "Websites & Domains" in report, \
+        "format_report should contain 'Websites & Domains' section"
+    print("✓ test_format_report_includes_websites_section passed")
+
+
+def test_format_report_includes_repositories_section():
+    """format_report should include a 'Repositories' section when repos present."""
+    analyzer = PolicyAnalyzer()
+    text = "Our code is at https://github.com/myorg/myrepo"
+    result = analyzer.analyze(text, "TestCo")
+    report = analyzer.format_report(result)
+    assert "Repositories" in report, \
+        "format_report should contain 'Repositories' section"
+    print("✓ test_format_report_includes_repositories_section passed")
+
+
+def test_format_report_includes_third_party_categorised_section():
+    """format_report should include categorised third-party section when services found."""
+    analyzer = PolicyAnalyzer()
+    text = "We use Stripe for payments and Mixpanel for analytics."
+    result = analyzer.analyze(text, "TestCo")
+    report = analyzer.format_report(result)
+    assert "Third-Party Services (by category)" in report, \
+        "format_report should contain 'Third-Party Services (by category)' section"
+    print("✓ test_format_report_includes_third_party_categorised_section passed")
+
+
+def test_format_report_includes_apis_section():
+    """format_report should include 'APIs & Integrations' section when API types found."""
+    analyzer = PolicyAnalyzer()
+    text = "Our REST API and GraphQL endpoint support OAuth 2.0."
+    result = analyzer.analyze(text, "TestCo")
+    report = analyzer.format_report(result)
+    assert "APIs & Integrations" in report, \
+        "format_report should contain 'APIs & Integrations' section"
+    print("✓ test_format_report_includes_apis_section passed")
+
+
+def test_format_report_includes_bots_section():
+    """format_report should include 'Bots & Automation' section when bots found."""
+    analyzer = PolicyAnalyzer()
+    text = "We use a chatbot and automated crawlers."
+    result = analyzer.analyze(text, "TestCo")
+    report = analyzer.format_report(result)
+    assert "Bots & Automation" in report, \
+        "format_report should contain 'Bots & Automation' section"
+    print("✓ test_format_report_includes_bots_section passed")
+
+
+def test_format_report_includes_data_sharing_summary_section():
+    """format_report should include 'Data Sharing Summary' section when sharing detected."""
+    analyzer = PolicyAnalyzer()
+    text = "We share personal data with third parties and advertisers."
+    result = analyzer.analyze(text, "TestCo")
+    report = analyzer.format_report(result)
+    assert "Data Sharing Summary" in report, \
+        "format_report should contain 'Data Sharing Summary' section"
+    print("✓ test_format_report_includes_data_sharing_summary_section passed")
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -399,6 +847,66 @@ def main():
     test_format_report_includes_privacy_concerns()
     test_format_report_includes_data_destinations()
     test_format_report_omits_empty_sections()
+
+    # ------------------------------------------------------------------ #
+    # New feature tests
+    # ------------------------------------------------------------------ #
+    print()
+    print("NEW EXTRACTION FEATURE TESTS")
+    print("-" * 40)
+
+    # extract_websites_and_domains
+    test_websites_and_domains_extracts_urls()
+    test_websites_and_domains_extracts_domains()
+    test_websites_and_domains_empty_input()
+
+    # extract_repositories
+    test_repositories_detects_github_url()
+    test_repositories_detects_gitlab_url()
+    test_repositories_detects_keyword_mentions()
+    test_repositories_empty_input()
+
+    # extract_third_party_services_categorised
+    test_third_party_detects_payment_processors()
+    test_third_party_detects_analytics_platforms()
+    test_third_party_detects_email_services()
+    test_third_party_returns_dict_of_lists()
+    test_third_party_empty_input_returns_empty_dict()
+
+    # extract_apis_and_integrations
+    test_apis_detects_rest()
+    test_apis_detects_graphql()
+    test_apis_detects_webhooks()
+    test_apis_detects_oauth()
+    test_apis_extracts_endpoint_urls()
+    test_apis_empty_input()
+
+    # extract_bots_and_automation
+    test_bots_detects_chatbot()
+    test_bots_detects_crawler()
+    test_bots_detects_scraping()
+    test_bots_returns_sorted_list()
+    test_bots_empty_input()
+
+    # extract_data_sharing_summary
+    test_data_sharing_detects_third_parties()
+    test_data_sharing_detects_advertisers()
+    test_data_sharing_detects_data_types()
+    test_data_sharing_detects_purposes()
+    test_data_sharing_return_type()
+    test_data_sharing_empty_input()
+
+    # analyze() new feature integration
+    test_analyze_includes_new_feature_keys()
+    test_analyze_new_features_json_serializable()
+
+    # format_report new feature sections
+    test_format_report_includes_websites_section()
+    test_format_report_includes_repositories_section()
+    test_format_report_includes_third_party_categorised_section()
+    test_format_report_includes_apis_section()
+    test_format_report_includes_bots_section()
+    test_format_report_includes_data_sharing_summary_section()
 
     print()
     print("=" * 80)
