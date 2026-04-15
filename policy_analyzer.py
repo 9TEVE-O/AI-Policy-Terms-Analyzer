@@ -17,11 +17,32 @@ import itertools
 from datetime import datetime
 from typing import Dict, List
 
+from extraction_modules import (
+    TechStackExtractor,
+    WebsiteDomainExtractor,
+    RepositoryExtractor,
+    ThirdPartyServiceExtractor,
+    APIIntegrationExtractor,
+    BotAutomationExtractor,
+    DataSharingExtractor,
+    run_all_extractors,
+    format_extraction_report,
+)
+
 
 class PolicyAnalyzer:
     """Analyzes policy documents to extract technical and operational information."""
     
     def __init__(self):
+        # Structured extraction modules (one per feature category)
+        self._tech_stack_extractor = TechStackExtractor()
+        self._website_domain_extractor = WebsiteDomainExtractor()
+        self._repository_extractor = RepositoryExtractor()
+        self._third_party_service_extractor = ThirdPartyServiceExtractor()
+        self._api_integration_extractor = APIIntegrationExtractor()
+        self._bot_automation_extractor = BotAutomationExtractor()
+        self._data_sharing_extractor = DataSharingExtractor()
+
         # Common tech keywords and patterns
         self.tech_keywords = {
             'platforms': ['github', 'gitlab', 'bitbucket', 'aws', 'azure',
@@ -298,6 +319,95 @@ class PolicyAnalyzer:
             'purposes': purposes,
         }
 
+    # ------------------------------------------------------------------
+    # Structured extraction methods (delegating to extraction_modules)
+    # ------------------------------------------------------------------
+
+    def extract_tech_stack(self, text: str) -> Dict:
+        """
+        Extract technologies, frameworks, and platforms mentioned in *text*.
+
+        Delegates to :class:`extraction_modules.TechStackExtractor`.
+
+        Returns:
+            Structured dict with ``by_category`` and ``all_technologies`` keys.
+        """
+        return self._tech_stack_extractor.extract(text)
+
+    def extract_websites_domains(self, text: str) -> Dict:
+        """
+        Extract all URLs and domain names referenced in *text*.
+
+        Delegates to :class:`extraction_modules.WebsiteDomainExtractor`.
+
+        Returns:
+            Structured dict with ``urls`` and ``domains`` keys.
+        """
+        return self._website_domain_extractor.extract(text)
+
+    def extract_repositories(self, text: str) -> Dict:
+        """
+        Detect VCS platform mentions and repository URLs in *text*.
+
+        Delegates to :class:`extraction_modules.RepositoryExtractor`.
+
+        Returns:
+            Structured dict with ``vcs_platforms_mentioned``,
+            ``repository_urls``, and ``context_snippets`` keys.
+        """
+        return self._repository_extractor.extract(text)
+
+    def extract_third_party_services_structured(self, text: str) -> Dict:
+        """
+        Identify named third-party services categorised by function
+        (payments, analytics, email, etc.).
+
+        Delegates to :class:`extraction_modules.ThirdPartyServiceExtractor`.
+
+        Returns:
+            Structured dict with ``by_category`` and ``all_services`` keys.
+        """
+        return self._third_party_service_extractor.extract(text)
+
+    def extract_apis_integrations(self, text: str) -> Dict:
+        """
+        Detect API protocols, endpoint patterns, webhooks, and named
+        third-party integrations mentioned in *text*.
+
+        Delegates to :class:`extraction_modules.APIIntegrationExtractor`.
+
+        Returns:
+            Structured dict with ``protocols``, ``endpoint_patterns``,
+            ``named_integrations``, and ``context_snippets`` keys.
+        """
+        return self._api_integration_extractor.extract(text)
+
+    def extract_bots_automation(self, text: str) -> Dict:
+        """
+        Extract references to chatbots, crawlers, scrapers, and automated
+        systems from *text*.
+
+        Delegates to :class:`extraction_modules.BotAutomationExtractor`.
+
+        Returns:
+            Structured dict with ``by_type``, ``all_mentions``, and
+            ``prohibition_snippets`` keys.
+        """
+        return self._bot_automation_extractor.extract(text)
+
+    def extract_data_sharing_structured(self, text: str) -> Dict:
+        """
+        Identify what personal data is shared, with whom, and under
+        what conditions.
+
+        Delegates to :class:`extraction_modules.DataSharingExtractor`.
+
+        Returns:
+            Structured dict with ``data_types_mentioned``, ``recipients``,
+            ``conditions``, and ``purposes`` keys.
+        """
+        return self._data_sharing_extractor.extract(text)
+
     def generate_user_summary(self, analysis: Dict) -> str:
         """
         Generate a user-friendly privacy summary from the analysis.
@@ -411,6 +521,7 @@ class PolicyAnalyzer:
         analysis = {
             'company_name': company_name,
             'analysis_date': datetime.now().isoformat(),
+            # Legacy / existing fields
             'urls_found': self.extract_urls(policy_text),
             'domains_found': self.extract_domains(policy_text),
             'emails_found': self.extract_emails(policy_text),
@@ -421,6 +532,14 @@ class PolicyAnalyzer:
             'data_sharing_mentions': self.detect_data_sharing(policy_text),
             'privacy_concerns': self.detect_privacy_concerns(policy_text),
             'data_destinations': self.detect_data_destinations(policy_text),
+            # Structured extraction modules (7 feature categories)
+            'tech_stack': self.extract_tech_stack(policy_text),
+            'websites_domains': self.extract_websites_domains(policy_text),
+            'repositories': self.extract_repositories(policy_text),
+            'third_party_services_structured': self.extract_third_party_services_structured(policy_text),
+            'apis_integrations': self.extract_apis_integrations(policy_text),
+            'bots_automation': self.extract_bots_automation(policy_text),
+            'data_sharing_structured': self.extract_data_sharing_structured(policy_text),
             'document_length': len(policy_text),
             'word_count': len(policy_text.split())
         }
@@ -532,7 +651,107 @@ class PolicyAnalyzer:
             for mention in analysis['data_sharing_mentions'][:5]:
                 report.append(f"  - {mention[:100]}...")
             report.append("")
-        
+
+        # ---------------------------------------------------------------
+        # Structured extraction sections (7 feature categories)
+        # ---------------------------------------------------------------
+        report.append("─" * 80)
+        report.append("STRUCTURED EXTRACTION RESULTS")
+        report.append("─" * 80)
+        report.append("")
+
+        # 1. Tech Stack
+        tech_stack = analysis.get('tech_stack', {})
+        by_cat = tech_stack.get('by_category', {})
+        if by_cat:
+            total = sum(len(v) for v in by_cat.values())
+            report.append(f"Tech Stack ({total} items):")
+            for cat, items in by_cat.items():
+                report.append(f"  {cat.replace('_', ' ').title()}: {', '.join(items)}")
+            report.append("")
+
+        # 2. Websites & Domains
+        wd = analysis.get('websites_domains', {})
+        if wd.get('urls') or wd.get('domains'):
+            report.append("Websites & Domains:")
+            if wd.get('urls'):
+                report.append(f"  URLs ({len(wd['urls'])}):")
+                for u in wd['urls'][:8]:
+                    report.append(f"    - {u}")
+                if len(wd['urls']) > 8:
+                    report.append(f"    ... and {len(wd['urls']) - 8} more")
+            if wd.get('domains'):
+                report.append(f"  Domains ({len(wd['domains'])}): {', '.join(wd['domains'][:12])}")
+            report.append("")
+
+        # 3. Repositories
+        repos = analysis.get('repositories', {})
+        if repos.get('vcs_platforms_mentioned') or repos.get('repository_urls'):
+            report.append("Repositories:")
+            if repos.get('vcs_platforms_mentioned'):
+                report.append(f"  VCS Platforms: {', '.join(repos['vcs_platforms_mentioned'])}")
+            if repos.get('repository_urls'):
+                report.append(f"  Repository URLs ({len(repos['repository_urls'])}):")
+                for url in repos['repository_urls'][:5]:
+                    report.append(f"    - {url}")
+            if repos.get('context_snippets'):
+                report.append(f"  Context snippets: {len(repos['context_snippets'])} found")
+            report.append("")
+
+        # 4. Third-Party Services (structured)
+        tps = analysis.get('third_party_services_structured', {})
+        tps_by_cat = tps.get('by_category', {})
+        if tps_by_cat:
+            total = sum(len(v) for v in tps_by_cat.values())
+            report.append(f"Third-Party Services ({total}):")
+            for cat, svcs in tps_by_cat.items():
+                report.append(f"  {cat.replace('_', ' ').title()}: {', '.join(svcs)}")
+            report.append("")
+
+        # 5. APIs & Integrations
+        apis = analysis.get('apis_integrations', {})
+        if apis.get('protocols') or apis.get('named_integrations') or apis.get('endpoint_patterns'):
+            report.append("APIs & Integrations:")
+            if apis.get('protocols'):
+                for proto, kws in apis['protocols'].items():
+                    report.append(f"  {proto.upper()}: {', '.join(kws[:4])}")
+            if apis.get('named_integrations'):
+                report.append(f"  Named Integrations: {', '.join(apis['named_integrations'][:8])}")
+            if apis.get('endpoint_patterns'):
+                report.append(f"  Endpoint Patterns ({len(apis['endpoint_patterns'])}):")
+                for ep in apis['endpoint_patterns'][:5]:
+                    report.append(f"    - {ep}")
+            report.append("")
+
+        # 6. Bots & Automation
+        bots = analysis.get('bots_automation', {})
+        bots_by_type = bots.get('by_type', {})
+        if bots_by_type:
+            total = sum(len(v) for v in bots_by_type.values())
+            report.append(f"Bots & Automation ({total} mentions):")
+            for bot_type, items in bots_by_type.items():
+                report.append(f"  {bot_type.replace('_', ' ').title()}: {', '.join(items)}")
+            if bots.get('prohibition_snippets'):
+                report.append(f"  Prohibition clauses: {len(bots['prohibition_snippets'])} found")
+            report.append("")
+
+        # 7. Data Sharing (structured)
+        ds = analysis.get('data_sharing_structured', {})
+        if ds.get('data_types_mentioned') or ds.get('recipients') or ds.get('purposes'):
+            report.append("Data Sharing:")
+            if ds.get('data_types_mentioned'):
+                for cat, types in ds['data_types_mentioned'].items():
+                    report.append(f"  {cat.replace('_', ' ').title()}: {', '.join(types[:5])}")
+            if ds.get('recipients'):
+                report.append(f"  Recipients ({len(ds['recipients'])}):")
+                for r in ds['recipients'][:5]:
+                    report.append(f"    - {r[:80]}")
+            if ds.get('purposes'):
+                report.append(f"  Purposes: {', '.join(ds['purposes'])}")
+            if ds.get('conditions'):
+                report.append(f"  Conditions: {len(ds['conditions'])} clause(s) found")
+            report.append("")
+
         report.append("=" * 80)
         return "\n".join(report)
 
