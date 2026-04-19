@@ -107,6 +107,143 @@ class PolicyAnalyzer:
         ]
         self._gcp_cert_res = [re.compile(p, re.IGNORECASE) for p in self.gcp_cert_patterns]
 
+        # ------------------------------------------------------------------ #
+        # Repository detection patterns
+        # ------------------------------------------------------------------ #
+        self._repo_url_res = [
+            re.compile(r'https?://github\.com/[\w.-]+(?:/[\w.-]+)+', re.IGNORECASE),
+            re.compile(r'https?://gitlab\.com/[\w.-]+(?:/[\w.-]+)+', re.IGNORECASE),
+            re.compile(r'https?://bitbucket\.org/[\w.-]+(?:/[\w.-]+)+', re.IGNORECASE),
+            re.compile(r'https?://(?:www\.)?sourceforge\.net/projects/[\w.-]+', re.IGNORECASE),
+            re.compile(r'https?://(?:www\.)?npmjs\.com/package/[\w@/.-]+', re.IGNORECASE),
+            re.compile(r'https?://(?:pkg\.go\.dev|crates\.io/crates)/[\w.-/]+', re.IGNORECASE),
+        ]
+        self._repo_keyword_res = [
+            re.compile(r'\bgithub(?:\.com)?\b', re.IGNORECASE),
+            re.compile(r'\bgitlab(?:\.com)?\b', re.IGNORECASE),
+            re.compile(r'\bbitbucket(?:\.org)?\b', re.IGNORECASE),
+            re.compile(r'\bsourceforge(?:\.net)?\b', re.IGNORECASE),
+            re.compile(r'\bgit\s+repositor(?:y|ies)\b', re.IGNORECASE),
+            re.compile(r'\bopen[- ]source\s+(?:code|project|repositor)\b', re.IGNORECASE),
+        ]
+
+        # ------------------------------------------------------------------ #
+        # Third-party service detection (categorised)
+        # ------------------------------------------------------------------ #
+        _payment = [
+            'stripe', 'paypal', 'braintree', 'square', 'adyen', 'klarna',
+            'afterpay', 'worldpay', 'razorpay', 'paddle', 'chargebee', 'recurly',
+            'authorize.net', '2checkout', 'payoneer', 'venmo',
+        ]
+        _analytics = [
+            'google analytics', 'ga4', 'mixpanel', 'amplitude', 'segment',
+            'heap', 'fullstory', 'hotjar', 'mouseflow', 'pendo', 'looker',
+            'tableau', 'adobe analytics', 'matomo', 'plausible', 'fathom',
+            'chartbeat', 'clicky', 'woopra',
+        ]
+        _email = [
+            'sendgrid', 'mailchimp', 'mailgun', 'ses', 'mandrill', 'postmark',
+            'sparkpost', 'klaviyo', 'constant contact', 'campaign monitor',
+            'convertkit', 'aweber', 'drip', 'hubspot', 'marketo', 'pardot',
+        ]
+        _cdn_infra = [
+            'cloudflare', 'fastly', 'akamai', 'cloudfront', 'cdn77', 'stackpath',
+            'bunnycdn', 'imgix',
+        ]
+        _customer_support = [
+            'zendesk', 'intercom', 'freshdesk', 'salesforce', 'hubspot',
+            'drift', 'crisp', 'livechat', 'tawk.to',
+        ]
+        _social = [
+            'facebook', 'instagram', 'twitter', 'linkedin', 'tiktok',
+            'snapchat', 'pinterest', 'youtube',
+        ]
+        _advertising = [
+            'google ads', 'doubleclick', 'facebook ads', 'meta ads',
+            'twitter ads', 'linkedin ads', 'taboola', 'outbrain', 'criteo',
+            'appnexus', 'rubicon', 'pubmatic', 'openx', 'index exchange',
+        ]
+        self._third_party_categories: Dict[str, List[str]] = {
+            'payment_processors': _payment,
+            'analytics_platforms': _analytics,
+            'email_services': _email,
+            'cdn_infrastructure': _cdn_infra,
+            'customer_support': _customer_support,
+            'social_media': _social,
+            'advertising_networks': _advertising,
+        }
+
+        # ------------------------------------------------------------------ #
+        # API & Integration detection patterns
+        # ------------------------------------------------------------------ #
+        self._api_detail_res = [
+            (re.compile(r'\bREST(?:ful)?\s+API\b', re.IGNORECASE), 'REST API'),
+            (re.compile(r'\bGraphQL\b', re.IGNORECASE), 'GraphQL'),
+            (re.compile(r'\bwebhooks?\b', re.IGNORECASE), 'Webhooks'),
+            (re.compile(r'\bOAuth\s*(?:1\.0|2\.0)?\b', re.IGNORECASE), 'OAuth'),
+            (re.compile(r'\bOpenAPI\b|\bSwagger\b', re.IGNORECASE), 'OpenAPI / Swagger'),
+            (re.compile(r'\bSDK\b', re.IGNORECASE), 'SDK integration'),
+            (re.compile(r'\bAPI\s+key\b|\baccess\s+token\b', re.IGNORECASE), 'API key / access token'),
+            (re.compile(r'\bSSO\b|\bSAML\b|\bOpenID\s+Connect\b', re.IGNORECASE), 'SSO / SAML / OIDC'),
+            (re.compile(r'\bCORS\b', re.IGNORECASE), 'CORS policy'),
+            (re.compile(r'\bIframe\b', re.IGNORECASE), 'iframe embed'),
+            (re.compile(r'\bembedded?\s+(?:widget|script|code)\b', re.IGNORECASE), 'Embedded widget/script'),
+        ]
+        self._api_url_re = re.compile(
+            r'https?://[^\s"\'<>]+/(?:api|v\d+|graphql|webhook)[^\s"\'<>]*',
+            re.IGNORECASE)
+
+        # ------------------------------------------------------------------ #
+        # Bot & Automation detection patterns
+        # ------------------------------------------------------------------ #
+        self._bot_patterns = [
+            (re.compile(r'\bchatbot\b', re.IGNORECASE), 'Chatbot'),
+            (re.compile(r'\bvirtual\s+assistant\b', re.IGNORECASE), 'Virtual assistant'),
+            (re.compile(r'\bweb\s+(?:crawler|spider|scraper)\b', re.IGNORECASE), 'Web crawler / spider'),
+            (re.compile(r'\bscraping\b|\bdata\s+scraping\b', re.IGNORECASE), 'Data scraping'),
+            (re.compile(r'\bautomated?\s+(?:system|process|tool|workflow|decision)\b', re.IGNORECASE),
+             'Automated system / workflow'),
+            (re.compile(r'\bbot\b(?!\s*(?:tle|any|h\b))', re.IGNORECASE), 'Bot'),
+            (re.compile(r'\brobots?\.txt\b', re.IGNORECASE), 'robots.txt'),
+            (re.compile(r'\bRPA\b|\brobotic\s+process\s+automation\b', re.IGNORECASE), 'RPA'),
+            (re.compile(r'\bno[\s-]?bot\b|\bdisallow\b', re.IGNORECASE), 'Bot restrictions'),
+            (re.compile(r'\bscheduled\s+(?:job|task|script)\b', re.IGNORECASE), 'Scheduled job / task'),
+            (re.compile(r'\bCI/CD\b|\bcontinuous\s+(?:integration|deployment|delivery)\b', re.IGNORECASE),
+             'CI/CD pipeline'),
+        ]
+
+        # ------------------------------------------------------------------ #
+        # Data sharing entity / recipient patterns
+        # ------------------------------------------------------------------ #
+        self._data_share_entity_res = [
+            (re.compile(r'\bthird[\s-]part(?:y|ies)\b', re.IGNORECASE), 'Third parties'),
+            (re.compile(r'\badvertis(?:ers?|ing\s+partners?)\b', re.IGNORECASE), 'Advertisers'),
+            (re.compile(r'\baffiliates?\b', re.IGNORECASE), 'Affiliates'),
+            (re.compile(r'\bsubsidiar(?:y|ies)\b', re.IGNORECASE), 'Subsidiaries'),
+            (re.compile(r'\bbusiness\s+partners?\b', re.IGNORECASE), 'Business partners'),
+            (re.compile(r'\bservice\s+providers?\b', re.IGNORECASE), 'Service providers'),
+            (re.compile(r'\bdata\s+brokers?\b', re.IGNORECASE), 'Data brokers'),
+            (re.compile(r'\blaw\s+enforcement\b', re.IGNORECASE), 'Law enforcement'),
+            (re.compile(r'\bgovernment\s+(?:agencies?|officials?|authorities?)\b', re.IGNORECASE),
+             'Government agencies'),
+            (re.compile(r'\bresearch(?:ers?|ing\s+(?:partners?|institutions?))\b', re.IGNORECASE),
+             'Research partners'),
+            (re.compile(r'\bacquir(?:er|ing\s+(?:compan|entit))', re.IGNORECASE), 'Acquirer (M&A)'),
+            (re.compile(r'\bsponsors?\b', re.IGNORECASE), 'Sponsors'),
+        ]
+        self._data_share_what_res = [
+            (re.compile(r'\bpersonal\s+(?:data|information)\b', re.IGNORECASE), 'Personal data'),
+            (re.compile(r'\busage\s+(?:data|statistics|information)\b', re.IGNORECASE), 'Usage data'),
+            (re.compile(r'\blocation\s+(?:data|information)\b', re.IGNORECASE), 'Location data'),
+            (re.compile(r'\bcontact\s+(?:details?|information)\b', re.IGNORECASE), 'Contact information'),
+            (re.compile(r'\bdevice\s+(?:data|information|identifier)\b', re.IGNORECASE), 'Device data'),
+            (re.compile(r'\bbrowsing\s+(?:history|data|behavior)\b', re.IGNORECASE), 'Browsing history'),
+            (re.compile(r'\bpurchase\s+(?:history|data|information)\b', re.IGNORECASE), 'Purchase history'),
+            (re.compile(r'\bbiometric\s+(?:data|information)\b', re.IGNORECASE), 'Biometric data'),
+            (re.compile(r'\bfinancial\s+(?:data|information)\b', re.IGNORECASE), 'Financial data'),
+            (re.compile(r'\bhealth\s+(?:data|information)\b', re.IGNORECASE), 'Health data'),
+        ]
+
         # Privacy concern patterns: (compiled_regex, description, severity)
         # Severity levels: 'high', 'medium', 'low'
         self._concern_patterns = [
@@ -267,6 +404,121 @@ class PolicyAnalyzer:
         
         return list(set(sharing_info))[:15]
     
+    # ------------------------------------------------------------------ #
+    # New feature methods
+    # ------------------------------------------------------------------ #
+
+    def extract_websites_and_domains(self, text: str) -> Dict[str, List[str]]:
+        """
+        Extract and list all referenced URLs and domains, deduplicated and sorted.
+
+        Returns:
+            Dictionary with 'urls' (full URLs) and 'domains' (bare hostnames).
+        """
+        urls = sorted(set(self._url_re.findall(text)))
+        # Derive domains from URLs (more reliable than raw domain regex on policy text)
+        url_hosts: set = set()
+        for url in urls:
+            # Extract host portion: strip scheme and path
+            host = re.sub(r'^https?://(?:www\.)?', '', url, flags=re.IGNORECASE)
+            host = re.split(r'[/?#]', host)[0].lower()
+            if host:
+                url_hosts.add(host)
+        # Also run raw domain regex to catch plain-text domain mentions
+        raw_domains = self._domain_re.findall(text)
+        filtered = {
+            d.lower() for d in raw_domains
+            if not self._version_re.match(d) and '.' in d and len(d) > 3
+        }
+        domains = sorted(url_hosts | filtered)
+        # Remove email-like entries (they are already captured by extract_emails)
+        email_domains = {e.split('@')[1].lower() for e in self._email_re.findall(text)}
+        domains = [d for d in domains if d not in email_domains]
+        return {'urls': urls, 'domains': domains}
+
+    def _extract_repositories_legacy(self, text: str) -> Dict[str, List[str]]:
+        """
+        Legacy repository extraction returning 'repo_urls' and 'repo_mentions'.
+
+        Kept for backwards compatibility. Prefer extract_repositories() which
+        delegates to RepositoryExtractor for richer structured output.
+
+        Returns:
+            Dictionary with 'repo_urls' and 'repo_mentions' (keyword based).
+        """
+        repo_urls: List[str] = []
+        for pattern in self._repo_url_res:
+            repo_urls.extend(pattern.findall(text))
+        repo_urls = sorted(set(repo_urls))
+
+        mentions: List[str] = []
+        for pattern, in ((p,) for p in self._repo_keyword_res):
+            for m in pattern.finditer(text):
+                start = max(0, m.start() - 30)
+                end = min(len(text), m.end() + 60)
+                snippet = text[start:end].strip().replace('\n', ' ')
+                if snippet not in mentions:
+                    mentions.append(snippet)
+
+        return {'repo_urls': repo_urls, 'repo_mentions': mentions[:20]}
+
+    def extract_third_party_services_categorised(self, text: str) -> Dict[str, List[str]]:
+        """
+        Identify third-party services by category.
+
+        Returns:
+            Dictionary keyed by category (payment_processors, analytics_platforms,
+            email_services, cdn_infrastructure, customer_support, social_media,
+            advertising_networks), each containing matched service names.
+        """
+        text_lower = text.lower()
+        result: Dict[str, List[str]] = {}
+        for category, keywords in self._third_party_categories.items():
+            matched = [kw for kw in keywords if kw in text_lower]
+            if matched:
+                result[category] = matched
+        return result
+
+    def extract_apis_and_integrations(self, text: str) -> Dict[str, List[str]]:
+        """
+        Extract mentions of REST APIs, GraphQL, webhooks, OAuth, and other integrations.
+
+        Returns:
+            Dictionary with 'api_types' (detected technology types) and
+            'api_urls' (explicit API endpoint URLs).
+        """
+        api_types = [label for pattern, label in self._api_detail_res if pattern.search(text)]
+        api_urls = sorted(set(self._api_url_re.findall(text)))
+        return {'api_types': api_types, 'api_urls': api_urls}
+
+    def extract_bots_and_automation(self, text: str) -> List[str]:
+        """
+        Identify references to chatbots, crawlers, scrapers, and automated systems.
+
+        Returns:
+            Sorted list of detected bot/automation type labels.
+        """
+        return sorted({label for pattern, label in self._bot_patterns if pattern.search(text)})
+
+    def extract_data_sharing_summary(self, text: str) -> Dict[str, List[str]]:
+        """
+        Structured extraction of *what* data is shared and *with whom*.
+
+        Returns:
+            Dictionary with:
+              'shared_with' — entity types that receive data.
+              'data_types'  — categories of data shared.
+              'purposes'    — functional purposes of sharing (reuses _purpose_res).
+        """
+        shared_with = [label for pattern, label in self._data_share_entity_res if pattern.search(text)]
+        data_types = [label for pattern, label in self._data_share_what_res if pattern.search(text)]
+        purposes = [desc for p_re, desc in self._purpose_res if p_re.search(text)]
+        return {
+            'shared_with': shared_with,
+            'data_types': data_types,
+            'purposes': purposes,
+        }
+
     def detect_privacy_concerns(self, text: str) -> Dict[str, List[str]]:
         """
         Detect privacy concerns and red flags categorized by severity.
@@ -521,7 +773,7 @@ class PolicyAnalyzer:
         analysis = {
             'company_name': company_name,
             'analysis_date': datetime.now().isoformat(),
-            # Legacy / existing fields
+            # Legacy fields (kept for backwards compatibility)
             'urls_found': self.extract_urls(policy_text),
             'domains_found': self.extract_domains(policy_text),
             'emails_found': self.extract_emails(policy_text),
@@ -540,6 +792,12 @@ class PolicyAnalyzer:
             'apis_integrations': self.extract_apis_integrations(policy_text),
             'bots_automation': self.extract_bots_automation(policy_text),
             'data_sharing_structured': self.extract_data_sharing_structured(policy_text),
+            # Additional feature fields (backwards compatibility)
+            'websites_and_domains': self.extract_websites_and_domains(policy_text),
+            'third_party_services_categorised': self.extract_third_party_services_categorised(policy_text),
+            'apis_and_integrations': self.extract_apis_and_integrations(policy_text),
+            'bots_and_automation': self.extract_bots_and_automation(policy_text),
+            'data_sharing_summary': self.extract_data_sharing_summary(policy_text),
             'document_length': len(policy_text),
             'word_count': len(policy_text.split())
         }
