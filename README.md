@@ -1,197 +1,105 @@
 # AI Policy & Terms Analyzer
 
-This repository contains tools and resources for analyzing companies' policies, terms and conditions, and privacy policies to extract valuable technical information.
+AI Policy & Terms Analyzer is a Python toolkit for extracting useful technical and operational signals from public policy documents, terms of service, and privacy pages. It helps turn dense legal text into structured findings: technologies mentioned, domains referenced, integrations disclosed, APIs named, automation language, and data-sharing patterns.
 
-## 🎯 Purpose
+## What it demonstrates
 
-Instead of manually reading through lengthy terms and conditions, this tool automatically analyzes policy documents to extract:
+- Python-first document analysis and text extraction workflows
+- Structured parsing of long policy and terms documents
+- Technology, service, domain, and integration detection
+- Report formatting for both human review and JSON-based downstream use
+- Companion utilities for key-point condensation and batch analysis
 
-- **Tech Stack**: Technologies, frameworks, and platforms companies use
-- **Websites & Domains**: All referenced URLs and domains
-- **Repositories**: GitHub, GitLab, and other version control mentions
-- **Third-Party Services**: Payment processors, analytics, email services, etc.
-- **APIs & Integrations**: REST APIs, GraphQL, webhooks, and connections
-- **Bots & Automation**: Chatbots, crawlers, and automated systems
-- **Data Sharing**: What data is shared and with whom
+---
 
-## 🚀 Quick Start
-
-### Basic Usage
+## Quick start
 
 ```bash
 # Run the interactive analyzer
 python policy_analyzer.py
 
-# Run examples to see what it can do
+# Run examples
 python example_usage.py
 
 # Run the quick start guide
 python quick_start.py
 ```
 
-### Configuration
+---
 
-You can customize the analyzer's behavior using configuration files. See [Configuration Guide](docs/configuration.md) for detailed options.
-
-```bash
-# Create a config file in your directory
-cp docs/examples/policyanalyzerrc.json .
-
-# Or use a custom config
-python policy_analyzer.py --config my_custom_config.json
-```
-
-### Using in Your Code
+## Basic usage
 
 ```python
 from policy_analyzer import PolicyAnalyzer
 
-# Create analyzer instance
 analyzer = PolicyAnalyzer()
 
-# Analyze a policy document
-policy_text = """Your company's policy text here..."""
+policy_text = """Paste policy text here..."""
 results = analyzer.analyze(policy_text, "Company Name")
 
-# Get formatted report
 print(analyzer.format_report(results))
-
-# Or work with the raw data
-print(f"URLs found: {results['urls_found']}")
-print(f"Technologies: {results['technologies_detected']}")
-
-# Access Google Cloud specific information
-gcp_info = results['google_cloud_info']
-print(f"GCP Services: {gcp_info['services']}")
-print(f"GCP Programs: {gcp_info['programs']}")
-print(f"GCP Certifications: {gcp_info['certifications']}")
+print(results["urls_found"])
+print(results["technologies_detected"])
 ```
 
-### Testing Google Cloud Detection
+---
+
+## Configuration
+
+Use a local config file to customise detection behaviour.
 
 ```bash
-# Run the Google Cloud detection test
-python test_google_cloud.py
+cp docs/examples/policyanalyzerrc.json .
+python policy_analyzer.py --config my_custom_config.json
 ```
 
-### Using the Key Point Condenser
+See [docs/configuration.md](docs/configuration.md) for detailed options.
+
+---
+
+## Features
+
+| Feature | Description |
+|---|---|
+| URL and domain extraction | Finds URLs and domain names mentioned in policy text |
+| Technology detection | Identifies cloud platforms, languages, frameworks, databases, and AI tools |
+| Service discovery | Detects payment, analytics, email, support, and communication services |
+| API and integration detection | Finds references to APIs, webhooks, GraphQL, REST, and connected systems |
+| Automation-language detection | Identifies references to bots, crawlers, chatbots, and automated systems |
+| Data-sharing analysis | Extracts language about what data is shared and with whom |
+| Key point condenser | Produces an abstract, extractive summary, and section outline |
+| Batch analysis | Processes multiple company policies into structured output |
+
+---
+
+## Key point condenser
 
 ```python
 from key_point_condenser import KeyPointCondenser
 
 condenser = KeyPointCondenser()
 
-# Condense a long policy document
-policy_text = """Your long policy text here..."""
-result = condenser.condense(policy_text, title="Company Policy")
+result = condenser.condense(
+    """Paste long policy text here...""",
+    title="Company Policy"
+)
 
-# Get a human-readable report (abstract + summary + outline)
 print(condenser.format_report(result))
-
-# Or access individual outputs
-print(result['abstract'])   # 3-sentence overview
-print(result['summary'])    # Extractive summary
-print(result['outline'])    # Structured outline by section
+print(result["abstract"])
+print(result["summary"])
+print(result["outline"])
 ```
 
-```bash
-# Run the Key Point Condenser interactively
-python key_point_condenser.py
+Run interactively:
 
-# Run tests
+```bash
+python key_point_condenser.py
 python test_key_point_condenser.py
 ```
 
-## 📋 Features
+---
 
-### 1. **URL & Domain Extraction**
-Automatically finds all URLs and domain names mentioned in policies.
-
-### 2. **Technology Detection**
-Identifies mentions of:
-- Cloud platforms (AWS, Azure, GCP, etc.)
-- Programming languages (Python, JavaScript, Java, etc.)
-- Frameworks (React, Django, Express, etc.)
-- Databases (MongoDB, PostgreSQL, MySQL, etc.)
-- AI/ML tools (OpenAI, ChatGPT, TensorFlow, etc.)
-
-### 3. **Google Cloud Platform Analysis** ⭐ NEW
-Comprehensive detection of Google Cloud usage:
-- **GCP Services**: Cloud Functions, Cloud Run, BigQuery, Vertex AI, Cloud SQL, etc.
-- **Developer Programs**: Google Cloud Developer and Innovator program references
-- **Certifications**: Google Cloud Certified professionals and credentials
-- **Complete Coverage**: 30+ Google Cloud services and programs tracked
-
-### 4. **Service Integration Discovery**
-Detects third-party services like:
-- Payment processors (Stripe, PayPal)
-- Communication tools (Twilio, SendGrid)
-- Analytics platforms (Google Analytics, Mixpanel)
-- Support systems (Zendesk, Intercom)
-
-### 5. **Bot & Automation Detection**
-Specifically identifies chatbots, automated systems, crawlers, and AI assistants.
-
-### 6. **Data Sharing Analysis**
-Extracts information about how and with whom companies share data.
-
-### 7. **Key Point Condenser** ⭐ NEW
-Summarizes long policy documents and generates structured outputs:
-- **Abstract**: 3-sentence high-level overview of the document
-- **Summary**: Extractive summary of the most important sentences
-- **Outline**: Structured outline organized by detected section headings
-
-### 8. **Multiple Output Formats**
-- Human-readable formatted reports
-- JSON for programmatic processing
-- Batch analysis for multiple companies
-
-## 💡 Use Cases
-
-1. **Quick Research**: Analyze policies while browsing to understand tech stack
-2. **Competitive Analysis**: Compare technologies used by different companies
-3. **Security Research**: Identify third-party integrations and data sharing
-4. **Tech Discovery**: Find new tools and services by analyzing successful companies
-5. **Dating Site Analysis**: Discover bot usage and AI systems on dating platforms
-6. **Data Collection**: Build a database of company tech stacks from public policies
-
-## 📊 Example Output
-
-```
-================================================================================
-POLICY ANALYSIS REPORT: TechCorp Inc.
-================================================================================
-
-Document Statistics:
-  - Length: 1,234 characters
-  - Word Count: 215 words
-
-URLs Found (2):
-  - https://techcorp.com/privacy
-  - https://api.techcorp.com
-
-Technologies Detected:
-  Platforms:
-    - aws
-    - github
-  Ai_Ml:
-    - openai
-    - chatgpt
-  Services:
-    - stripe
-    - sendgrid
-    - google analytics
-
-Third-Party Services (5):
-  - Zendesk for customer support
-  - Intercom for live chat
-  - Twilio for SMS notifications
-  ...
-```
-
-## 🔧 Advanced Usage
-
-### Batch Processing Multiple Policies
+## Batch processing
 
 ```python
 from policy_analyzer import PolicyAnalyzer
@@ -209,152 +117,60 @@ results = {}
 for company, policy in companies.items():
     results[company] = analyzer.analyze(policy, company)
 
-# Save all results
-with open('all_companies_analysis.json', 'w') as f:
+with open("all_companies_analysis.json", "w") as f:
     json.dump(results, f, indent=2)
 ```
 
-### Custom Technology Keywords
+---
 
-```python
-analyzer = PolicyAnalyzer()
+## Files
 
-# Add custom keywords to detect
-analyzer.tech_keywords['custom_category'] = ['keyword1', 'keyword2']
+| File | Purpose |
+|---|---|
+| `policy_analyzer.py` | Main analyzer and `PolicyAnalyzer` class |
+| `key_point_condenser.py` | Summary and outline utility for long documents |
+| `example_usage.py` | Usage examples |
+| `quick_start.py` | Interactive quick start flow |
+| `batch_analyzer.py` | Batch processing utility |
+| `test_google_cloud.py` | Detection tests for Google Cloud language |
+| `test_ai_operator_os.py` | Tests for the AI Operator OS module |
+| `requirements.txt` | Python dependencies |
+| `docs/configuration.md` | Configuration documentation |
+| `docs/examples/` | Example config files |
 
-results = analyzer.analyze(policy_text, "Company")
+---
+
+## AI Operator OS module
+
+This repository also includes `ai_operator_os.py`, a three-tier orchestration experiment for routing specialised AI tasks through application, kernel, and data layers.
+
+```text
+Application Layer   -> Research | Workflow | MusicProduction | PromptLib
+Kernel Layer        -> Scheduler | ContextMgr | MemoryMgr | LLMCore | Evaluation
+Data/Hardware Layer -> RelationalStore | VectorStore | FileStore | Compute Resources
 ```
 
-## 📁 Files in This Repository
-
-- `policy_analyzer.py` - Main analyzer tool with PolicyAnalyzer class
-- `ai_operator_os.py` - Subzteveø AI Operator OS (three-tier orchestration framework)
-- `example_usage.py` - Comprehensive examples showing different use cases
-- `quick_start.py` - Interactive quick start guide for new users
-- `batch_analyzer.py` - Batch processing tool for multiple policies
-- `test_google_cloud.py` - Tests for Google Cloud detection
-- `test_ai_operator_os.py` - Tests for the AI Operator OS
-- `requirements.txt` - Python dependencies (minimal - uses standard library)
-- `docs/ai_operator_os_architecture.md` - **AI Operator OS architecture guide**
-- `docs/configuration.md` - Comprehensive configuration documentation
-- `docs/examples/` - Example configuration files for different use cases
-- `README.md` - This documentation file
-- AI workshop materials (PDFs) - Learning resources
-
-## 🤖 Subzteveø AI Operator OS
-
-The repository includes the **Subzteveø AI Operator OS** — a three-tier
-orchestration framework that turns isolated AI experiments into a unified,
-secure, and scalable system.
-
-### Architecture
-
-```
-Application Layer  →  GovernmentCompliance | MusicProduction | Research | Workflow | PromptLib
-Kernel Layer       →  Scheduler | ContextMgr | MemoryMgr | LLMCore | AccessMgr | Evaluation
-Data/Hardware Layer→  RelationalStore | VectorStore | FileStore | Compute Resources
-```
-
-### Quick Start
-
-```python
-from ai_operator_os import AIOperatorOS
-
-os_instance = AIOperatorOS(deployment_mode='local')
-
-# Policy research
-result = os_instance.run('research_agent',
-                         'We use AWS and OpenAI GPT. Contact privacy@example.com',
-                         company_name='Example Corp')
-print(result['response'])
-
-# Government compliance check
-result = os_instance.run('government_compliance_agent',
-                         'Our platform is GDPR and HIPAA compliant with FedRAMP authorization.')
-print(result['compliance_findings'])
-
-# Music production assistance
-result = os_instance.run('music_production_agent',
-                         'Hip hop beat at 90 BPM in Ableton with heavy reverb.')
-print(result['music_context'])
-
-# Evaluation metrics
-print(os_instance.evaluation_report())
-```
-
-### Deployment Modes
-
-| Mode | Description |
-|------|-------------|
-| `local` | All layers in-process on local hardware |
-| `remote_kernel` | Agents local, kernel on a remote server |
-| `personal_remote` | Personal cloud VM with local fallback |
-| `hybrid` | Local agents, cloud kernel/data when available |
+Run the demo and tests:
 
 ```bash
-# Run the interactive OS demo
 python ai_operator_os.py
-
-# Run the OS test suite
 python test_ai_operator_os.py
 ```
 
-See **[AI Operator OS Architecture Guide](docs/ai_operator_os_architecture.md)** for full documentation.
+See [docs/ai_operator_os_architecture.md](docs/ai_operator_os_architecture.md) for details.
 
 ---
 
-## 📚 Documentation
+## Best-use workflow
 
-- **[AI Operator OS Architecture](docs/ai_operator_os_architecture.md)** - Three-tier architecture guide
-- **[Configuration Guide](docs/configuration.md)** - Complete guide to configuring the analyzer
-- **[User Guide](USER_GUIDE.md)** - Detailed guide for beginners
-- **[Quick Reference](QUICK_REFERENCE.md)** - Quick command reference
-- **[Project Summary](PROJECT_SUMMARY.md)** - Technical implementation details
-
-## 🎓 Learning Resources
-
-This repository also contains AI learning materials:
-- AI Generalist Fellowship materials
-- AI Income Workshop workbooks (1-3)
-- Road Map and session guides
-- YTA Playbook
-
-## 🤝 Contributing
-
-This tool was created to make policy analysis accessible and automated. Feel free to:
-- Add more technology keywords
-- Improve detection patterns
-- Add new analysis features
-- Share your use cases
-
-## 📝 Tips for Best Results
-
-1. **Copy the full policy**: Include complete terms/privacy policy for best results
-2. **Multiple documents**: Analyze both terms AND privacy policy for complete picture
-3. **Save results**: Use JSON output to build your own database
-4. **Compare companies**: Run batch analysis to spot patterns and trends
-5. **Dating sites**: Pay special attention to bot and AI mentions
-
-## 🔍 What You Can Discover
-
-From analyzing company policies, you can learn:
-- What cloud infrastructure they use (cost and scale insights)
-- Which third-party services they integrate (potential partnerships)
-- Their tech stack (what technologies are popular/working)
-- Bot and automation usage (especially on dating sites)
-- Data sharing practices (privacy and security insights)
-- API availability (integration opportunities)
-
-## 🚦 Getting Started - No Coding Required
-
-1. Open a company's Terms of Service or Privacy Policy webpage
-2. Copy all the text (Ctrl+A, Ctrl+C)
-3. Run: `python policy_analyzer.py`
-4. Paste the text and press Ctrl+D (Mac/Linux) or Ctrl+Z (Windows)
-5. View the analysis results!
-
-## 📧 Output
-
-Analysis results show you everything the company uses to run their business - all extracted from public legal documents they're required to provide!
+1. Copy the full terms or privacy policy text.
+2. Run `python policy_analyzer.py`.
+3. Paste the text into the interactive prompt.
+4. Review the formatted report.
+5. Save JSON output for comparison, research, or later analysis.
 
 ---
+
+## Output
+
+The analyzer produces structured findings that can be read directly or used as data for further analysis. It is intended for research, technical discovery, platform comparison, and workflow experimentation.
