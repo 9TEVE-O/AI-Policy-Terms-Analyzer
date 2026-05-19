@@ -1,0 +1,38 @@
+name: Regression baseline
+
+on:
+  push:
+    branches:
+      - codex/regression-test-hardening
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  regression-baseline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Show Python version
+        run: python --version
+
+      - name: Run Google Cloud detection script
+        run: python test_google_cloud.py
+
+      - name: Run AI Operator OS script tests
+        run: python test_ai_operator_os.py
+
+      - name: Run usage examples
+        run: python example_usage.py
+
+      - name: Run regression unittest baseline
+        run: python -m unittest tests/test_policy_analyzer_regression.py
