@@ -116,7 +116,6 @@ for text in texts:
 # ✅ Compile once and reuse
 pattern = re.compile(build_pattern(config))
 for text in texts:
-    matches = re.findall(r'\b\w+\b', text)  # Pattern compiled each time
     matches = pattern.findall(text)
 
 # ❌ Sequential document processing
@@ -131,7 +130,7 @@ for doc in docs:
 
 ---
 
-## 🎨 Code Structure
+## 🎨 Code Structure: ALL PROJECTS
 
 ### Function Design
 - [ ] Functions doing too much? (Could be split)
@@ -143,3 +142,22 @@ for doc in docs:
 - [ ] Expensive imports in hot paths?
 - [ ] Heavy initialization in loops?
 - [ ] Lazy loading where appropriate?
+
+---
+
+## 🧠 TEACH THE ROBOT SPECIFIC
+
+### Audio Engineering
+- [ ] Are audio processing loops optimized? (Vectorization vs. sample-by-sample)
+- [ ] Buffer sizes appropriate? (vs. block size)
+- [ ] DSP operations using optimized libraries? (librosa, scipy.signal, numpy)
+- [ ] Real-time processing constraints? (Latency acceptable)
+- [ ] Memory usage for waveforms? (Streaming for large files)
+
+### React/JS Conventions
+- [ ] Component re-render optimization? (useMemo, useCallback)
+- [ ] State updates batched? (React 18 automatic batching)
+- [ ] DOM queries in loops? (querySelector cached)
+- [ ] Event listener cleanup? (Preventing memory leaks)
+- [ ] Virtual lists for large datasets? (vs. rendering all)
+- [ ] Bundle size optimized? (Code splitting, tree-shaking)
