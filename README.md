@@ -171,6 +171,53 @@ See [docs/ai_operator_os_architecture.md](docs/ai_operator_os_architecture.md) f
 
 ---
 
+## Limitations and responsible use
+
+This toolkit supports research and technical discovery. Its output is an aid to human analysis, not an authoritative interpretation of a policy, contract, privacy notice, law, regulation, or compliance obligation.
+
+### False positives and false negatives
+
+Detection is based on text patterns, configured terms, and document structure. The analyzer may:
+
+- identify a technology, service, integration, or data-sharing relationship that the document does not actually establish;
+- miss a relevant disclosure because it uses unfamiliar wording, appears only through context, or is contained in material not supplied to the analyzer;
+- treat historical, hypothetical, excluded, or third-party language as a current operational statement;
+- produce incomplete results from truncated, poorly extracted, scanned, translated, or malformed text.
+
+Absence from the output does not prove absence from the source document. A detected item does not prove that the item is active, correctly described, legally significant, or applicable to a particular user.
+
+### Not legal or compliance advice
+
+The analyzer does not provide legal advice, compliance certification, regulatory interpretation, contractual approval, or a determination that an organisation meets any legal standard. Policy language must be reviewed against the complete source, applicable jurisdiction, current law, contractual context, and appropriate professional advice where required.
+
+### Private and sensitive documents
+
+The examples in this repository focus on public policy and terms documents. Before processing a private, confidential, privileged, personal, commercially sensitive, or regulated document:
+
+- confirm that you have authority to use the document;
+- understand where the text, configuration, logs, temporary files, and outputs will be stored;
+- avoid sending raw content to external AI services or third-party systems unless that transfer is authorised and suitable safeguards are in place;
+- minimise retained content and remove unnecessary personal or confidential information;
+- apply the security, privacy, retention, access-control, and deletion requirements appropriate to the document.
+
+This repository does not itself establish secure storage, confidential-computing guarantees, access governance, approved retention controls, or verified deletion.
+
+### Human review is required
+
+A human reviewer should compare material findings with the complete source document and preserve the supporting passage for any consequential conclusion. Review should consider context, definitions, exceptions, cross-references, dates, jurisdiction, document version, and whether linked or incorporated material was omitted.
+
+Do not use analyzer output by itself to make legal, employment, financial, security, procurement, privacy, eligibility, enforcement, or other consequential decisions.
+
+### Production-readiness boundary
+
+The existence of code, tests, documentation, structured output, or automated workflows in this repository does not establish that the toolkit is production-ready, secure, accurate across document types, independently validated, continuously maintained, legally compliant, or suitable for unattended decision-making.
+
+Before production use, the intended operator should define and test measurable accuracy requirements, supported document types, failure handling, security controls, dependency management, monitoring, audit logging, review gates, rollback procedures, and ownership for errors and updates.
+
+See [docs/RESPONSIBLE_USE_EVIDENCE_RUN_2026-07-22.md](docs/RESPONSIBLE_USE_EVIDENCE_RUN_2026-07-22.md) for the controlled change record behind this section.
+
+---
+
 ## Output
 
 The analyzer produces structured findings that can be read directly or used as data for further analysis. It is intended for research, technical discovery, platform comparison, and workflow experimentation.
