@@ -36,7 +36,7 @@ The following instruction initiated this controlled run:
 - No dependency or packaging changes.
 - No new legal, compliance, security or production-readiness claims.
 - No statement that tests prove semantic accuracy.
-- No direct push or merge to `main`.
+- No direct push or merge to `main` before explicit acceptance.
 - No alteration of the separate `codex/regression-test-hardening` work.
 
 ## 3. Generated change
@@ -131,10 +131,11 @@ The README now states that the toolkit supports research and technical discovery
 ### Human acceptance
 
 **Decision authority:** Steven Lees  
-**Current status:** Pending review of the exact branch patch and pull request.  
-**Merge status:** Not approved and not merged.
+**Decision:** Accepted.  
+**Acceptance recorded:** 23 July 2026, Australia/Darwin.  
+**Approved action:** Merge pull request #37 into `main`.
 
-This record does not treat task authorisation as proof that Steven Lees reviewed or accepted the final wording. Final human acceptance must be recorded through an explicit PR approval, merge instruction, or subsequent decision update.
+Steven Lees explicitly accepted the reviewed controlled change after the branch, pull request, evidence record, rejected suggestion, checks and pending approval boundary were presented.
 
 ## 7. Public-claim boundary after this change
 
@@ -160,4 +161,5 @@ Not supported:
 | Rejected suggestion | Preserved with reason and risk |
 | Checks performed | Preserved |
 | Technical acceptance | Recorded |
-| Steven Lees final acceptance | Pending explicit review |
+| Steven Lees final acceptance | Accepted and recorded |
+| Merge authority | Granted for PR #37 |
