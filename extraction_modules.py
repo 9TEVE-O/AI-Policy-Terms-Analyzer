@@ -489,12 +489,12 @@ class BotAutomationExtractor:
 
     _PROHIBITION_PATTERNS = [
         re.compile(
-            r'(?:prohibit|forbid|not\s+(?:allowed|permitted))\s+[^\n.]{0,80}'
+            r'(?:prohibit|forbid|not\s+(?:allowed|permitted))\s+[^.]{0,80}'
             r'(?:bot|automat|crawl|scrape|spider)',
             re.IGNORECASE,
         ),
         re.compile(
-            r'(?:bot|automat|crawl|scrape|spider)[^\n.]{0,80}'
+            r'(?:bot|automat|crawl|scrape|spider)[^.]{0,80}'
             r'(?:prohibit|forbid|not\s+(?:allowed|permitted))',
             re.IGNORECASE,
         ),
@@ -530,7 +530,7 @@ class BotAutomationExtractor:
         seen_p: set = set()
         for pattern in self._PROHIBITION_PATTERNS:
             for m in pattern.finditer(text):
-                snippet = m.group(0).strip()[:200]
+                snippet = m.group(0).strip().replace('\n', ' ')[:200]
                 if snippet not in seen_p:
                     prohibitions.append(snippet)
                     seen_p.add(snippet)
