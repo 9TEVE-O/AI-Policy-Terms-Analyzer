@@ -487,14 +487,22 @@ class BotAutomationExtractor:
         ],
     }
 
+    # [^.] alone would let a match cross a blank-line paragraph break and
+    # join two unrelated clauses (e.g. "prohibit hate speech\n\nOur chatbot"
+    # would wrongly read as a bot prohibition). The (?!\r?\n[ \t]*\r?\n)
+    # lookahead blocks that (LF- and CRLF-style blank lines alike) while
+    # still tolerating a single soft line wrap within one clause, e.g.
+    # "prohibit\nscraping" on two wrapped lines of the same sentence.
     _PROHIBITION_PATTERNS = [
         re.compile(
-            r'(?:prohibit|forbid|not\s+(?:allowed|permitted))\s+[^\n.]{0,80}'
+            r'(?:prohibit|forbid|not\s+(?:allowed|permitted))\s+'
+            r'(?:(?!\r?\n[ \t]*\r?\n)[^.]){0,80}'
             r'(?:bot|automat|crawl|scrape|spider)',
             re.IGNORECASE,
         ),
         re.compile(
-            r'(?:bot|automat|crawl|scrape|spider)[^\n.]{0,80}'
+            r'(?:bot|automat|crawl|scrape|spider)'
+            r'(?:(?!\r?\n[ \t]*\r?\n)[^.]){0,80}'
             r'(?:prohibit|forbid|not\s+(?:allowed|permitted))',
             re.IGNORECASE,
         ),
@@ -530,7 +538,7 @@ class BotAutomationExtractor:
         seen_p: set = set()
         for pattern in self._PROHIBITION_PATTERNS:
             for m in pattern.finditer(text):
-                snippet = m.group(0).strip()[:200]
+                snippet = re.sub(r'[\r\n]+', ' ', m.group(0)).strip()[:200]
                 if snippet not in seen_p:
                     prohibitions.append(snippet)
                     seen_p.add(snippet)

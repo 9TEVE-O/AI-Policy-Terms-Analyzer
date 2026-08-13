@@ -334,6 +334,45 @@ def test_bot_prohibition_snippets():
     print("✓ test_bot_prohibition_snippets passed")
 
 
+def test_bot_prohibition_snippet_exact_text():
+    # Assert the exact single-line snippet (no embedded \n) for the
+    # soft-wrapped LF fixture used in test_bot_prohibition_snippets.
+    result = BotAutomationExtractor().extract(BOT_HEAVY)
+    assert result['prohibition_snippets'] == ['Automated scraping of our content is prohibit'], \
+        f"Unexpected snippet(s): {result['prohibition_snippets']}"
+    print("✓ test_bot_prohibition_snippet_exact_text passed")
+
+
+def test_bot_prohibition_does_not_cross_paragraph_break():
+    # Regression test: the prohibition regex must tolerate a soft line wrap
+    # within one clause (see test_bot_prohibition_snippets) but must NOT
+    # bridge a blank-line paragraph break and join two unrelated clauses.
+    text = "We prohibit hate speech\n\nOur chatbot assists users with billing questions"
+    result = BotAutomationExtractor().extract(text)
+    assert result['prohibition_snippets'] == [], \
+        f"Expected no prohibition snippet across a paragraph break, got: {result['prohibition_snippets']}"
+    print("✓ test_bot_prohibition_does_not_cross_paragraph_break passed")
+
+
+def test_bot_prohibition_handles_crlf_soft_wrap():
+    # CRLF-wrapped equivalent of the LF fixture: must still match, and the
+    # snippet must not contain a stray \r (or \n).
+    text = "Automated scraping of our\r\ncontent is prohibited by policy."
+    result = BotAutomationExtractor().extract(text)
+    assert result['prohibition_snippets'] == ['Automated scraping of our content is prohibit'], \
+        f"Unexpected CRLF snippet(s): {result['prohibition_snippets']}"
+    print("✓ test_bot_prohibition_handles_crlf_soft_wrap passed")
+
+
+def test_bot_prohibition_does_not_cross_crlf_paragraph_break():
+    # CRLF equivalent of test_bot_prohibition_does_not_cross_paragraph_break.
+    text = "We prohibit hate speech\r\n\r\nOur chatbot assists users with billing questions"
+    result = BotAutomationExtractor().extract(text)
+    assert result['prohibition_snippets'] == [], \
+        f"Expected no prohibition snippet across a CRLF paragraph break, got: {result['prohibition_snippets']}"
+    print("✓ test_bot_prohibition_does_not_cross_crlf_paragraph_break passed")
+
+
 def test_bot_all_mentions_flat():
     result = BotAutomationExtractor().extract(BOT_HEAVY)
     assert isinstance(result['all_mentions'], list)
@@ -530,6 +569,10 @@ def main():
     test_bot_detects_crawlers_scrapers()
     test_bot_detects_automated_systems()
     test_bot_prohibition_snippets()
+    test_bot_prohibition_snippet_exact_text()
+    test_bot_prohibition_does_not_cross_paragraph_break()
+    test_bot_prohibition_handles_crlf_soft_wrap()
+    test_bot_prohibition_does_not_cross_crlf_paragraph_break()
     test_bot_all_mentions_flat()
     test_bot_empty_text()
 

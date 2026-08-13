@@ -44,16 +44,20 @@ print(results["technologies_detected"])
 
 ---
 
-## Configuration
+## Customising detection keywords
 
-Use a local config file to customise detection behaviour.
+`PolicyAnalyzer` keeps its keyword lists (e.g. `tech_keywords`) as plain public attributes, so you can adjust detection behaviour directly in Python before calling `analyze()`:
 
-```bash
-cp docs/examples/policyanalyzerrc.json .
-python policy_analyzer.py --config my_custom_config.json
+```python
+from policy_analyzer import PolicyAnalyzer
+
+analyzer = PolicyAnalyzer()
+analyzer.tech_keywords['blockchain'] = ['ethereum', 'bitcoin', 'web3']
+
+results = analyzer.analyze(policy_text, "Company Name")
 ```
 
-See [docs/configuration.md](docs/configuration.md) for detailed options.
+There is no config-file, environment-variable, or CLI-flag configuration system. See [docs/configuration.md](docs/configuration.md) for what is and isn't supported, and for reference keyword lists you can copy from.
 
 ---
 
