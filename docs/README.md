@@ -5,21 +5,15 @@ Welcome to the Policy Analyzer documentation!
 ## Available Documentation
 
 ### [Configuration Guide](configuration.md)
-Complete guide to configuring the Policy Analyzer. Learn how to:
-- Use configuration files (JSON, YAML, Python)
-- Customize technology keywords
-- Control output format and sections
-- Use environment variables
-- Set up batch processing
 
-### Example Configurations
+Explains what customisation is actually supported (mutating `PolicyAnalyzer.tech_keywords` and similar public attributes in Python) and what isn't (there is no config-file, environment-variable, or CLI-flag system).
 
-The [`examples/`](examples/) directory contains ready-to-use configuration files:
+### Reference keyword lists
 
-- **[policyanalyzerrc.json](examples/policyanalyzerrc.json)** - Complete default configuration in JSON format
-- **[policyanalyzerrc.yml](examples/policyanalyzerrc.yml)** - Complete default configuration in YAML format
-- **[dating-site-bot-detection.json](examples/dating-site-bot-detection.json)** - Focused config for dating site bot analysis
-- **[fintech-analysis.json](examples/fintech-analysis.json)** - Config optimized for financial technology companies
+The [`examples/`](examples/) directory contains illustrative keyword groupings you can copy into `tech_keywords` by hand — they are **not** loaded automatically:
+
+- **[dating-site-bot-detection.json](examples/dating-site-bot-detection.json)** - Keyword groupings for dating-site bot/AI detection
+- **[fintech-analysis.json](examples/fintech-analysis.json)** - Keyword groupings for financial-technology analysis
 
 ## Quick Links
 
@@ -33,57 +27,9 @@ The [`examples/`](examples/) directory contains ready-to-use configuration files
 ## Getting Started
 
 1. **New to the tool?** Start with [README.md](../README.md) and [USER_GUIDE.md](../USER_GUIDE.md)
-2. **Want to customize?** See the [Configuration Guide](configuration.md)
+2. **Want to customize detection keywords?** See the [Configuration Guide](configuration.md)
 3. **Need quick commands?** Check [QUICK_REFERENCE.md](../QUICK_REFERENCE.md)
 4. **Technical details?** Read [PROJECT_SUMMARY.md](../PROJECT_SUMMARY.md)
-
-## Using Example Configurations
-
-To use an example configuration:
-
-```bash
-# Copy to your working directory
-cp docs/examples/policyanalyzerrc.json .
-
-# Or use directly
-python policy_analyzer.py --config docs/examples/dating-site-bot-detection.json
-```
-
-## Configuration Format
-
-The Policy Analyzer supports multiple configuration formats:
-
-### JSON (Recommended)
-```json
-{
-  "analyzer": {
-    "tech_keywords": {
-      "platforms": ["aws", "azure", "gcp"]
-    }
-  }
-}
-```
-
-### YAML
-```yaml
-analyzer:
-  tech_keywords:
-    platforms:
-      - aws
-      - azure
-      - gcp
-```
-
-### Python
-```python
-config = {
-    'analyzer': {
-        'tech_keywords': {
-            'platforms': ['aws', 'azure', 'gcp']
-        }
-    }
-}
-```
 
 ## Contributing
 
@@ -91,7 +37,6 @@ Found an issue or want to improve the documentation?
 
 1. Open an issue describing the problem
 2. Submit a pull request with improvements
-3. Share your custom configurations with the community
 
 ---
 

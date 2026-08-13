@@ -40,7 +40,7 @@ CI does not run everything the same way or run all files:
 - `.github/workflows/tests.yml` runs `python test_document_scanner.py`, `test_extraction_modules.py`, `test_ai_policy_researcher.py`, and `test_ai_operator_os.py` as direct scripts.
 - `test_privacy_concerns.py` and `test_pyproject_toml.py` are not wired into either workflow.
 
-**Known pre-existing failure**: `test_extraction_modules.py::test_bot_prohibition_snippets` fails on `main` as of the current HEAD (`AssertionError: Expected prohibition mention, got: []`) — a regex/test mismatch in `BotAutomationExtractor`'s prohibition-snippet detection, unrelated to unrelated changes. Don't assume you broke something if you see only this failure.
+**Known pre-existing failure**: `test_privacy_concerns.py::test_repositories_detects_github_url` fails (`AssertionError: Result should have 'repo_urls' key`) — a legacy/structured field-naming mismatch (`repo_urls` vs. `RepositoryExtractor`'s `repository_urls`), unrelated to unrelated changes. Don't assume you broke something if you see only this failure. (A previously-noted failure in `test_extraction_modules.py::test_bot_prohibition_snippets` was fixed by tightening `BotAutomationExtractor._PROHIBITION_PATTERNS` to tolerate soft line wraps without crossing paragraph breaks — see the regression test `test_bot_prohibition_does_not_cross_paragraph_break`.)
 
 ## Architecture
 
