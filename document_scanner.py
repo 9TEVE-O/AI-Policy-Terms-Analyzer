@@ -17,24 +17,15 @@ Supported input types
 * Remote URLs (http/https) — always available via ``urllib.request``; the
   optional ``requests`` package is used when present for better timeout and
   redirect handling.
-
-Optional dependencies (add to requirements.txt to enable):
-    beautifulsoup4>=4.12.0
-    requests>=2.31.0
-    pdfplumber>=0.10.0
 """
 
 import html
 import os
 import re
-import urllib.request
 import urllib.error
+import urllib.request
 from html.parser import HTMLParser
 from typing import Dict
-
-# ---------------------------------------------------------------------------
-# Optional-dependency guards
-# ---------------------------------------------------------------------------
 
 try:
     import pdfplumber as _pdfplumber  # noqa: F401
@@ -55,15 +46,17 @@ except ImportError:
     _HAS_REQUESTS = False
 
 
-# ---------------------------------------------------------------------------
-# Stdlib HTML text extractor (fallback when beautifulsoup4 is absent)
-# ---------------------------------------------------------------------------
-
 class _TextExtractorParser(HTMLParser):
-    """Minimal HTML parser that strips tags and collects visible text."""
+    """Minimal HTML parser that strips tags while preserving block boundaries."""
 
-    # Tags whose entire content (including children) should be ignored
     _SKIP_TAGS = {'script', 'style', 'head', 'noscript', 'template', 'meta', 'link'}
+    _BLOCK_TAGS = {
+        'address', 'article', 'aside', 'blockquote', 'br', 'dd', 'div', 'dl',
+        'dt', 'fieldset', 'figcaption', 'figure', 'footer', 'form', 'h1', 'h2',
+        'h3', 'h4', 'h5', 'h6', 'header', 'hr', 'li', 'main', 'nav', 'ol',
+        'p', 'pre', 'section', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead',
+        'tr', 'ul',
+    }
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -71,131 +64,73 @@ class _TextExtractorParser(HTMLParser):
         self._skip_depth = 0
 
     def handle_starttag(self, tag, attrs):
-        if tag.lower() in self._SKIP_TAGS:
+        tag = tag.lower()
+        if tag in self._SKIP_TAGS:
             self._skip_depth += 1
+            return
+        if self._skip_depth == 0 and tag in self._BLOCK_TAGS:
+            self._parts.append('\n\n')
 
     def handle_endtag(self, tag):
-        if tag.lower() in self._SKIP_TAGS and self._skip_depth > 0:
+        tag = tag.lower()
+        if tag in self._SKIP_TAGS and self._skip_depth > 0:
             self._skip_depth -= 1
+            return
+        if self._skip_depth == 0 and tag in self._BLOCK_TAGS:
+            self._parts.append('\n\n')
 
     def handle_data(self, data):
         if self._skip_depth == 0:
-            stripped = data.strip()
-            if stripped:
-                self._parts.append(stripped)
+            self._parts.append(data)
 
     def get_text(self) -> str:
-        return ' '.join(self._parts)
+        return ''.join(self._parts)
 
-
-# ---------------------------------------------------------------------------
-# DocumentScanner
-# ---------------------------------------------------------------------------
 
 class DocumentScanner:
-    """
-    Extracts plain text from documents so they can be fed into PolicyAnalyzer,
-    KeyPointCondenser, and AIPolicyResearcher.
+    """Extract plain text from local documents, HTML, PDFs, and web pages."""
 
-    Usage::
-
-        scanner = DocumentScanner()
-
-        # From a file (type detected automatically)
-        text = scanner.scan_file('/path/to/policy.pdf')
-
-        # From a URL
-        text = scanner.scan_url('https://example.com/privacy')
-
-        # From an HTML string already in memory
-        text = scanner.scan_html_content('<html>...</html>')
-    """
-
-    # Maximum response size when fetching URLs (5 MB)
     _MAX_URL_BYTES = 5 * 1024 * 1024
-
-    # Request timeout for URL fetches (seconds)
     _URL_TIMEOUT = 15
-
-    # User-agent sent with URL requests
     _USER_AGENT = (
         'Mozilla/5.0 (compatible; AI-Policy-Analyzer/1.0; '
         '+https://github.com/9TEVE-O/AI-Policy-Terms-Analyzer)'
     )
+    _BLOCK_TAGS = _TextExtractorParser._BLOCK_TAGS
 
     def __init__(self):
-        # Normalise repeated whitespace in extracted text
-        self._whitespace_re = re.compile(r'\s{2,}')
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+        # Horizontal whitespace is normalised separately from newlines so
+        # paragraph boundaries remain available to downstream extractors.
+        self._horizontal_whitespace_re = re.compile(r'[\t\f\v ]{2,}')
+        self._spaces_around_newline_re = re.compile(r'[\t ]*\n[\t ]*')
+        self._excess_newlines_re = re.compile(r'\n{3,}')
 
     def scan_file(self, filepath: str) -> str:
-        """
-        Detect the file type by extension and extract text.
-
-        Supports ``.pdf``, ``.html``/``.htm``, and plain-text files.
-
-        Args:
-            filepath: Absolute or relative path to the file.
-
-        Returns:
-            Extracted plain text.
-
-        Raises:
-            FileNotFoundError: If the file does not exist.
-            ValueError: If the file extension is not recognised.
-            ImportError: If a PDF is provided but pdfplumber is not installed.
-        """
+        """Detect the file type by extension and extract text."""
         if not os.path.isfile(filepath):
             raise FileNotFoundError(f"File not found: {filepath}")
 
         ext = os.path.splitext(filepath)[1].lower()
-
         if ext == '.pdf':
             return self.scan_pdf(filepath)
-        elif ext in ('.html', '.htm'):
+        if ext in ('.html', '.htm'):
             return self.scan_html_file(filepath)
-        elif ext in ('.txt', '.md', '.csv', '.rst', '.text', ''):
-            return self.scan_text_file(filepath)
-        else:
-            # Attempt to read as plain text; raise if it looks binary
-            return self.scan_text_file(filepath)
+        return self.scan_text_file(filepath)
 
     def scan_text_file(self, filepath: str) -> str:
-        """
-        Read a plain-text file and return its contents.
-
-        Args:
-            filepath: Path to the text file.
-
-        Returns:
-            File contents as a string.
-        """
+        """Read a plain-text file and return its contents unchanged."""
         with open(filepath, 'r', encoding='utf-8', errors='replace') as fh:
             return fh.read()
 
     def scan_pdf(self, filepath: str) -> str:
-        """
-        Extract text from a PDF file using ``pdfplumber``.
-
-        Args:
-            filepath: Path to the PDF file.
-
-        Returns:
-            Extracted plain text from all pages.
-
-        Raises:
-            ImportError: If pdfplumber is not installed.
-        """
+        """Extract text from a PDF while preserving page boundaries."""
         if not _HAS_PDFPLUMBER:
             raise ImportError(
                 "PDF scanning requires the 'pdfplumber' package. "
                 "Install it with:  pip install pdfplumber"
             )
 
-        import pdfplumber  # delayed import: pdfplumber is an optional dependency
+        import pdfplumber
 
         pages_text = []
         with pdfplumber.open(filepath) as pdf:
@@ -207,36 +142,13 @@ class DocumentScanner:
         return self._clean_text('\n\n'.join(pages_text))
 
     def scan_html_file(self, filepath: str) -> str:
-        """
-        Read an HTML file and extract its visible text.
-
-        Args:
-            filepath: Path to the HTML file.
-
-        Returns:
-            Extracted visible text.
-        """
+        """Read an HTML file and extract its visible text."""
         with open(filepath, 'r', encoding='utf-8', errors='replace') as fh:
             html_content = fh.read()
         return self.scan_html_content(html_content)
 
     def scan_url(self, url: str) -> str:
-        """
-        Fetch a web page and extract its visible text.
-
-        Uses ``requests`` when available for better timeout/redirect handling,
-        otherwise falls back to ``urllib.request``.
-
-        Args:
-            url: The http or https URL to fetch.
-
-        Returns:
-            Extracted visible text.
-
-        Raises:
-            ValueError: If the URL scheme is not http or https.
-            urllib.error.URLError: If the page cannot be fetched.
-        """
+        """Fetch an HTTP(S) page and extract its visible text."""
         if not url.startswith(('http://', 'https://')):
             raise ValueError(f"Only http/https URLs are supported, got: {url!r}")
 
@@ -244,26 +156,21 @@ class DocumentScanner:
         return self.scan_html_content(html_content)
 
     def scan_html_content(self, html_content: str) -> str:
-        """
-        Extract visible text from an HTML string.
-
-        Uses ``beautifulsoup4`` when available; falls back to a lightweight
-        stdlib ``html.parser``-based extractor.
-
-        Args:
-            html_content: Raw HTML string.
-
-        Returns:
-            Extracted visible text.
-        """
+        """Extract visible text from HTML while retaining block boundaries."""
         if _HAS_BS4:
             from bs4 import BeautifulSoup
+
             soup = BeautifulSoup(html_content, 'html.parser')
-            # Remove script, style, and other non-visible elements
-            for tag in soup(["script", "style", "head", "noscript",
-                             "template", "meta", "link"]):
+            for tag in soup([
+                'script', 'style', 'head', 'noscript', 'template', 'meta', 'link'
+            ]):
                 tag.decompose()
-            text = soup.get_text(separator=' ', strip=True)
+
+            # Mark block-level boundaries before flattening the DOM. The
+            # cleaner below retains at most one blank line between blocks.
+            for tag in soup.find_all(list(self._BLOCK_TAGS)):
+                tag.append('\n\n')
+            text = soup.get_text(separator=' ', strip=False)
         else:
             parser = _TextExtractorParser()
             parser.feed(html_content)
@@ -272,21 +179,9 @@ class DocumentScanner:
         return self._clean_text(text)
 
     def get_document_info(self, filepath: str) -> Dict:
-        """
-        Return metadata about a document without extracting all its text.
-
-        Args:
-            filepath: Path to the file.
-
-        Returns:
-            Dict with keys: ``filename``, ``extension``, ``size_bytes``,
-            ``scanner_available`` (bool).
-        """
+        """Return document metadata without extracting the full document."""
         ext = os.path.splitext(filepath)[1].lower()
-        scanner_available = True
-        if ext == '.pdf' and not _HAS_PDFPLUMBER:
-            scanner_available = False
-
+        scanner_available = not (ext == '.pdf' and not _HAS_PDFPLUMBER)
         size_bytes = os.path.getsize(filepath) if os.path.isfile(filepath) else 0
 
         return {
@@ -296,14 +191,11 @@ class DocumentScanner:
             'scanner_available': scanner_available,
         }
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
     def _fetch_url(self, url: str) -> str:
-        """Fetch URL content using requests (if available) or urllib."""
+        """Fetch URL content using requests when available, otherwise urllib."""
         if _HAS_REQUESTS:
             import requests
+
             with requests.get(
                 url,
                 timeout=self._URL_TIMEOUT,
@@ -311,37 +203,40 @@ class DocumentScanner:
                 stream=True,
             ) as response:
                 response.raise_for_status()
-                # Read up to _MAX_URL_BYTES to avoid massive downloads
-                content = b''
+                content = bytearray()
                 for chunk in response.iter_content(chunk_size=8192):
-                    content += chunk
+                    if not chunk:
+                        continue
+                    remaining = self._MAX_URL_BYTES - len(content)
+                    if remaining <= 0:
+                        break
+                    content.extend(chunk[:remaining])
                     if len(content) >= self._MAX_URL_BYTES:
                         break
-                return content.decode(
+                return bytes(content).decode(
                     response.encoding or 'utf-8', errors='replace'
                 )
-        else:
-            req = urllib.request.Request(
-                url, headers={'User-Agent': self._USER_AGENT}
-            )
-            with urllib.request.urlopen(req, timeout=self._URL_TIMEOUT) as resp:
-                raw = resp.read(self._MAX_URL_BYTES)
-            # Attempt to detect encoding from Content-Type header
+
+        req = urllib.request.Request(
+            url, headers={'User-Agent': self._USER_AGENT}
+        )
+        with urllib.request.urlopen(req, timeout=self._URL_TIMEOUT) as resp:
+            raw = resp.read(self._MAX_URL_BYTES)
             content_type = resp.headers.get('Content-Type', '')
-            charset_match = re.search(r'charset=([^\s;]+)', content_type)
-            encoding = charset_match.group(1) if charset_match else 'utf-8'
-            return raw.decode(encoding, errors='replace')
+
+        charset_match = re.search(r'charset=([^\s;]+)', content_type)
+        encoding = charset_match.group(1) if charset_match else 'utf-8'
+        return raw.decode(encoding, errors='replace')
 
     def _clean_text(self, text: str) -> str:
-        """Normalise whitespace and unescape HTML entities in extracted text."""
+        """Normalise whitespace without destroying paragraph boundaries."""
         text = html.unescape(text)
-        text = self._whitespace_re.sub(' ', text)
+        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        text = self._horizontal_whitespace_re.sub(' ', text)
+        text = self._spaces_around_newline_re.sub('\n', text)
+        text = self._excess_newlines_re.sub('\n\n', text)
         return text.strip()
 
-
-# ---------------------------------------------------------------------------
-# CLI entry point
-# ---------------------------------------------------------------------------
 
 def main():
     """Interactive Document Scanner."""
