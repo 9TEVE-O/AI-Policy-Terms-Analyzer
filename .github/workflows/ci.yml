@@ -11,27 +11,31 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.11', '3.13']
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install "flake8>=6.0,<8.0" "pytest>=7.0,<9.0"
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          python -m pip install "flake8>=6.0,<8.0" "pytest>=7.0,<9.0"
+          python -m pip install -e ".[all]"
 
       - name: Lint with flake8
         run: |
-          # stop the build if there are Python syntax errors or undefined names
+          # Stop the build on Python syntax errors or undefined names.
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          # warn on style issues but don't fail the build
+          # Report style issues without failing this bounded hardening gate.
           flake8 . --count --max-line-length=120 --statistics --exit-zero
 
-      - name: Run tests
-        run: python -m pytest test_google_cloud.py test_ai_operator_os.py test_key_point_condenser.py -v
+      - name: Run full pytest suite
+        run: python -m pytest -q
