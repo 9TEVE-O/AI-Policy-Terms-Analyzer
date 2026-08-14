@@ -199,7 +199,9 @@ class PolicyAnalyzer:
         self._bot_patterns = [
             (re.compile(r'\bchatbot\b', re.IGNORECASE), 'Chatbot'),
             (re.compile(r'\bvirtual\s+assistant\b', re.IGNORECASE), 'Virtual assistant'),
-            (re.compile(r'\bweb\s+(?:crawler|spider|scraper)\b', re.IGNORECASE), 'Web crawler / spider'),
+            (re.compile(
+                r'\b(?:(?:web|automated)\s+)?(?:crawler|spider|scraper)s?\b',
+                re.IGNORECASE), 'Web crawler / spider'),
             (re.compile(r'\bscraping\b|\bdata\s+scraping\b', re.IGNORECASE), 'Data scraping'),
             (re.compile(r'\bautomated?\s+(?:system|process|tool|workflow|decision)\b', re.IGNORECASE),
              'Automated system / workflow'),
@@ -961,7 +963,7 @@ class PolicyAnalyzer:
         tps_by_cat = tps.get('by_category', {})
         if tps_by_cat:
             total = sum(len(v) for v in tps_by_cat.values())
-            report.append(f"Third-Party Services ({total}):")
+            report.append(f"Third-Party Services (by category) ({total}):")
             for cat, svcs in tps_by_cat.items():
                 report.append(f"  {cat.replace('_', ' ').title()}: {', '.join(svcs)}")
             report.append("")
@@ -996,7 +998,7 @@ class PolicyAnalyzer:
         # 7. Data Sharing (structured)
         ds = analysis.get('data_sharing_structured', {})
         if ds.get('data_types_mentioned') or ds.get('recipients') or ds.get('purposes'):
-            report.append("Data Sharing:")
+            report.append("Data Sharing Summary:")
             if ds.get('data_types_mentioned'):
                 for cat, types in ds['data_types_mentioned'].items():
                     report.append(f"  {cat.replace('_', ' ').title()}: {', '.join(types[:5])}")

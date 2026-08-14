@@ -85,11 +85,15 @@ class TechStackExtractor:
     }
 
     def __init__(self) -> None:
-        # Build a flattened lookup: lowercase keyword → (category, original_keyword)
-        self._lookup: Dict[str, tuple] = {}
+        self._patterns: Dict[str, List[re.Pattern]] = {}
         for category, keywords in self._KEYWORDS.items():
-            for kw in keywords:
-                self._lookup[kw.lower()] = (category, kw)
+            self._patterns[category] = [
+                re.compile(
+                    r'(?<!\w)' + re.escape(keyword) + r'(?!\w)',
+                    re.IGNORECASE,
+                )
+                for keyword in keywords
+            ]
 
     def extract(self, text: str) -> Dict[str, object]:
         """
@@ -105,16 +109,15 @@ class TechStackExtractor:
               "all_technologies": ["aws", "python", ...]   # flat, deduped
             }
         """
-        text_lower = text.lower()
         by_category: Dict[str, List[str]] = {}
         seen: set = set()
 
-        # Iterate in stable definition order
-        for category, keywords in self._KEYWORDS.items():
-            for kw in keywords:
-                if kw.lower() in text_lower and kw.lower() not in seen:
-                    by_category.setdefault(category, []).append(kw)
-                    seen.add(kw.lower())
+        for category, patterns in self._patterns.items():
+            for index, pattern in enumerate(patterns):
+                keyword = self._KEYWORDS[category][index]
+                if pattern.search(text) and keyword.lower() not in seen:
+                    by_category.setdefault(category, []).append(keyword)
+                    seen.add(keyword.lower())
 
         return {
             'by_category': by_category,
@@ -221,12 +224,11 @@ class RepositoryExtractor:
 
     def extract(self, text: str) -> Dict[str, object]:
         """
-        Returns:
-            {
-              "vcs_platforms_mentioned": ["github", "gitlab"],
-              "repository_urls":         ["https://github.com/org/repo"],
-              "context_snippets":        ["source code available on GitHub..."]
-            }
+        Return repository evidence.
+
+        ``repository_urls`` and ``context_snippets`` are canonical. The
+        ``repo_urls`` and ``repo_mentions`` keys are backwards-compatible
+        aliases and contain the same values as their canonical counterparts.
         """
         text_lower = text.lower()
         platforms = [h for h in self._VCS_HOSTS if h in text_lower]
@@ -238,7 +240,7 @@ class RepositoryExtractor:
                 deduped_platforms.append(p)
                 seen_p.add(p)
 
-        repo_urls = list(dict.fromkeys(self._repo_url_re.findall(text)))
+        repository_urls = list(dict.fromkeys(self._repo_url_re.findall(text)))[:20]
 
         snippets: List[str] = []
         seen_s: set = set()
@@ -248,11 +250,14 @@ class RepositoryExtractor:
                 if snippet not in seen_s:
                     snippets.append(snippet)
                     seen_s.add(snippet)
+        context_snippets = snippets[:10]
 
         return {
             'vcs_platforms_mentioned': deduped_platforms,
-            'repository_urls': repo_urls[:20],
-            'context_snippets': snippets[:10],
+            'repository_urls': repository_urls,
+            'context_snippets': context_snippets,
+            'repo_urls': repository_urls,
+            'repo_mentions': context_snippets,
         }
 
 
