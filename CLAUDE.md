@@ -4,16 +4,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-A Python toolkit for extracting structured technical, operational, and data-sharing signals from policy, privacy, and terms-of-service documents. It is explicitly **not** a legal/compliance tool — see the "Limitations and responsible use" section of `README.md` before changing anything that touches detection claims or report wording.
+A Python toolkit for extracting structured technical, operational, and data-sharing signals from policy, privacy, and terms-of-service documents. It is explicitly **not** a legal/compliance tool. Read the "Limitations and responsible use" section of `README.md` before changing detection claims or report wording.
 
-Standard-library only by default; `beautifulsoup4`, `requests`, and `pdfplumber` are optional and feature-detected at import time (see `document_scanner.py`).
+The project is standard-library-first. `beautifulsoup4`, `requests`, and `pdfplumber` are optional and feature-detected where needed by `document_scanner.py`.
 
-## Commands
+## Canonical setup and verification
 
 ```bash
-pip install -e .              # or: pip install -e ".[all]" for HTML/PDF/URL scanning support
+# Base editable install
+pip install -e .
 
-# Run tools interactively
+# Install all optional scanner dependencies used by CI
+pip install -e ".[all]"
+
+# Canonical full test gate
+python -m pytest -q
+
+# Lint exactly as CI does
+flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+flake8 . --count --max-line-length=120 --statistics --exit-zero
+```
+
+`.github/workflows/ci.yml` is the canonical automated test gate. It runs the complete pytest suite on Python 3.9, 3.11, and 3.13 with optional dependencies installed.
+
+`.github/workflows/codeql.yml` runs Python CodeQL analysis separately.
+
+The repository passed the portfolio hardening gate merged in PR #39 on 14 August 2026. Do not preserve or repeat older documentation that says some test files are excluded from CI or that `test_privacy_concerns.py::test_repositories_detects_github_url` is a known failing test. That state was superseded by the hardening work, including the `repo_urls` / `repository_urls` compatibility regression.
+
+## Interactive tools
+
+```bash
 python policy_analyzer.py
 python key_point_condenser.py
 python batch_analyzer.py
@@ -22,41 +42,52 @@ python ai_policy_researcher.py
 python document_scanner.py
 python ai_operator_os.py
 python extraction_modules.py
-
-# Lint (matches CI in .github/workflows/ci.yml)
-flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics   # errors only, fails build
-flake8 . --count --max-line-length=120 --statistics --exit-zero      # style warnings, informational
 ```
-
-### Running tests
-
-There is no single test command — two conventions coexist:
-
-- Most `test_*.py` files are **dual-mode**: plain `assert`-based functions named `test_*`, called manually from an `if __name__ == "__main__":` block. Run them directly (`python test_extraction_modules.py`) or under pytest (`pytest test_extraction_modules.py`, or `pytest test_extraction_modules.py::test_api_detects_rest` for a single case) — both work.
-- `test_pyproject_toml.py` is pytest-only (uses a `@pytest.fixture`, has no `__main__` block): `pytest test_pyproject_toml.py`.
-
-CI does not run everything the same way or run all files:
-- `.github/workflows/ci.yml` runs `pytest test_google_cloud.py test_ai_operator_os.py test_key_point_condenser.py -v`.
-- `.github/workflows/tests.yml` runs `python test_document_scanner.py`, `test_extraction_modules.py`, `test_ai_policy_researcher.py`, and `test_ai_operator_os.py` as direct scripts.
-- `test_privacy_concerns.py` and `test_pyproject_toml.py` are not wired into either workflow.
-
-**Known pre-existing failure**: `test_privacy_concerns.py::test_repositories_detects_github_url` fails (`AssertionError: Result should have 'repo_urls' key`) — a legacy/structured field-naming mismatch (`repo_urls` vs. `RepositoryExtractor`'s `repository_urls`), unrelated to unrelated changes. Don't assume you broke something if you see only this failure. (A previously-noted failure in `test_extraction_modules.py::test_bot_prohibition_snippets` was fixed by tightening `BotAutomationExtractor._PROHIBITION_PATTERNS` to tolerate soft line wraps without crossing paragraph breaks — see the regression test `test_bot_prohibition_does_not_cross_paragraph_break`.)
 
 ## Architecture
 
-Several independently-usable analysis engines share the repo but are **not** unified behind one entry point or config system:
+Several independently usable analysis engines share the repository but are **not** unified behind one entry point or configuration system:
 
-- **`policy_analyzer.py` (`PolicyAnalyzer`)** — the main analyzer. `analyze()` returns a dict with two parallel sets of fields for the same underlying signals: legacy fields computed by methods defined directly on `PolicyAnalyzer` (`extract_urls`, `detect_technologies`, `extract_third_party_services`, ...), and structured fields computed by delegating to `extraction_modules.py`'s seven `*Extractor` classes (`tech_stack`, `websites_domains`, `repositories`, `third_party_services_structured`, `apis_integrations`, `bots_automation`, `data_sharing_structured`). The structured extractors are the newer, canonical implementation (see `REPO_AUDIT_2026-06-30.md` finding #2–3); the legacy fields exist for backward compatibility with older report/JSON consumers. When fixing a detection bug, check whether the same logic is duplicated in both a `PolicyAnalyzer` method and the corresponding `extraction_modules.py` extractor.
-- **`extraction_modules.py`** — seven standalone `Extractor` classes (`TechStackExtractor`, `WebsiteDomainExtractor`, `RepositoryExtractor`, `ThirdPartyServiceExtractor`, `APIIntegrationExtractor`, `BotAutomationExtractor`, `DataSharingExtractor`), each with an `extract(text) -> dict` method, plus `run_all_extractors()` as a standalone orchestrator independent of `PolicyAnalyzer`.
-- **`document_scanner.py` (`DocumentScanner`)** — turns files/URLs/HTML into plain text for the analyzers above; not wired into `PolicyAnalyzer` automatically, callers pass its output in manually.
-- **`ai_policy_researcher.py` (`AIPolicyResearcher`)** and **`key_point_condenser.py` (`KeyPointCondenser`)** — separate, self-contained analyzers (AI-clause detection; extractive summarization) that don't share code with `PolicyAnalyzer` or each other.
-- **`batch_analyzer.py`** — thin orchestration layer that runs `PolicyAnalyzer` over multiple companies and builds a comparison report.
-- **`ai_operator_os.py`** — a separate three-tier orchestration experiment (Data / Kernel / Application layers: `RelationalStore`/`VectorStore`/`FileStore`, `Scheduler`/`ContextManager`/`MemoryManager`/`LLMCore`/`ToolAccessManager`/`EvaluationEngine`, and domain `Agent`s) that wraps `PolicyAnalyzer` via its `ResearchAgent`. `LLMCore` runs in a documented no-dependency "mock" mode unless a real provider is registered with `register_provider()`. Largely independent of the rest of the codebase — read `docs/ai_operator_os_architecture.md` before touching it.
+- **`policy_analyzer.py` (`PolicyAnalyzer`)** — the main analyser. `analyze()` returns both legacy fields and structured fields for overlapping signals. Structured extraction is delegated to `extraction_modules.py`; legacy fields remain for backwards compatibility. When fixing a detection bug, check whether the same logic exists in both paths.
+- **`extraction_modules.py`** — seven standalone extractor classes (`TechStackExtractor`, `WebsiteDomainExtractor`, `RepositoryExtractor`, `ThirdPartyServiceExtractor`, `APIIntegrationExtractor`, `BotAutomationExtractor`, `DataSharingExtractor`) plus `run_all_extractors()`.
+- **`document_scanner.py` (`DocumentScanner`)** — turns files, URLs and HTML into plain text. It is not automatically wired into `PolicyAnalyzer`; callers pass extracted text to the analyser.
+- **`ai_policy_researcher.py` (`AIPolicyResearcher`)** and **`key_point_condenser.py` (`KeyPointCondenser`)** — separate self-contained analysis utilities.
+- **`batch_analyzer.py`** — orchestration over multiple documents using `PolicyAnalyzer`.
+- **`ai_operator_os.py`** — a separate orchestration experiment that wraps `PolicyAnalyzer` through its research agent. Treat it as independent experimental scope unless a task explicitly targets it.
+
+### Compatibility rule
+
+The structured extractors are the preferred implementation for new extraction behaviour. Legacy fields should remain compatibility adapters unless a deliberate breaking change is approved and tested.
 
 ### No configuration system
 
-Despite what `docs/configuration.md`'s "See also" links and `docs/README.md` may suggest, **there is no config-file loader, `POLICY_ANALYZER_*` environment-variable system, or CLI flag parsing anywhere in this codebase** (verified: no `argparse`/`sys.argv` usage in any `.py` file, `PolicyAnalyzer.__init__` takes no `config` argument). The only real customization mechanism is mutating public instance attributes in Python before calling `analyze()`, e.g. `analyzer.tech_keywords['blockchain'] = [...]` — `tech_keywords`, `gcp_services`, and `gcp_programs` are read fresh on every call. `docs/examples/*.json` are illustrative keyword-list snippets to copy from by hand, not files the tool loads. Don't propagate the config-file/CLI-flag claims into new code or docs — see `docs/configuration.md` for the corrected version.
+There is **no config-file loader, environment-variable configuration system, or CLI flag parser** for `PolicyAnalyzer` in the current codebase. In particular:
 
-### Root-directory noise
+- no automatic `policyanalyzerrc.*` loading;
+- no `POLICY_ANALYZER_*` environment-variable system;
+- no `--config`, `--company`, `--output-format`, or `--save-to` flags;
+- no `config=` argument on `PolicyAnalyzer()`.
 
-The repo root also contains unrelated personal/learning materials (PDFs, an `.xlsx` workbook, a `memory assessment` file) that are not part of the project — ignore them unless a task specifically references them.
+The supported customisation mechanism is direct mutation of public instance attributes before calling `analyze()`, for example:
+
+```python
+from policy_analyzer import PolicyAnalyzer
+
+analyzer = PolicyAnalyzer()
+analyzer.tech_keywords['blockchain'] = ['ethereum', 'bitcoin', 'web3']
+results = analyzer.analyze(policy_text, 'Company Name')
+```
+
+`docs/examples/*.json` are reference snippets only; the application does not load them.
+
+## Evidence and claim discipline
+
+- Tests demonstrate the behaviours they actually assert; they do not establish legal correctness, production readiness, general accuracy, or security completeness.
+- A successful CodeQL workflow does not prove the absence of vulnerabilities.
+- Detection output is evidence for human review, not an authoritative interpretation of a contract, privacy notice, law, regulation, or compliance obligation.
+- Preserve supporting source text for consequential findings.
+- Do not add public claims that exceed the evidence recorded in the repository.
+
+## Repository hygiene
+
+Keep the root limited to project code, tests, package/configuration files, current project documentation, and intentionally retained examples. Do not add personal certificates, course workbooks, training schedules, unrelated learning PDFs, or other non-project artefacts.

@@ -1,7 +1,9 @@
 # Repository Audit — AI Policy Terms Analyzer
 
-Status: audited with write limitation.
-Classification: working Python toolkit / portfolio proof asset / needs cleanup before client-safe use.
+> **Historical record — superseded.** This audit describes the repository state as at 30 June 2026. Several findings and missing controls were subsequently addressed, including packaging, full pytest CI coverage, Python-version matrix testing, scanner/extractor regressions, schema compatibility hardening, false-positive protections, and Python CodeQL in PR #39, merged 14 August 2026. Do not use this file as the current repository status. For current verification, inspect `main`, `.github/workflows/ci.yml`, `.github/workflows/codeql.yml`, the latest merged hardening PR, and current test results.
+
+Status at time of audit: audited with write limitation.
+Classification at time of audit: working Python toolkit / portfolio proof asset / needs cleanup before client-safe use.
 Date: 2026-06-30
 
 ## Reframed question
@@ -21,12 +23,12 @@ The strongest positioning is not legal analysis. It is structured policy-documen
 - The tool should avoid claiming legal/compliance advice.
 - The priority is practical document intelligence, not a full SaaS product.
 
-## Missing information
+## Missing information at time of audit
 
 - No CI result was available during this audit.
-- No package metadata is present, so the repo is not yet installable as a Python package.
-- The repo contains unrelated PDFs/workbooks, which makes the canonical project boundary unclear.
-- No benchmark corpus or labelled evaluation set is present.
+- No package metadata was present at that time, so the repo was not yet installable as a Python package.
+- The repo contained unrelated PDFs/workbooks, which made the canonical project boundary unclear.
+- No benchmark corpus or labelled evaluation set was present.
 
 ## Failure conditions
 
@@ -114,7 +116,7 @@ Avoid:
 - privacy scoring as fact
 - claims that the tool determines whether a policy is safe
 
-## Recommended next commits
+## Recommended next commits at time of audit
 
 1. Harden `document_scanner.py` URL handling.
 2. Add false-positive regression tests to `test_extraction_modules.py`.
@@ -132,13 +134,13 @@ Concrete intended fixes:
 - In `_fetch_url()`, read headers inside the urllib context manager.
 - In the requests path, append only the remaining bytes needed to respect `_MAX_URL_BYTES`.
 
-## Promotion status
+## Promotion status at time of audit
 
-Current status: audited / patch blocked.
+Current status at time of audit: audited / patch blocked.
 
 Do not mark as fixed until the code patch lands and tests are run.
 
-## Next concrete action
+## Next concrete action at time of audit
 
 Apply the `document_scanner.py` hardening patch manually or in a trusted local dev environment, then run:
 
@@ -149,7 +151,7 @@ python test_ai_policy_researcher.py
 python test_ai_operator_os.py
 ```
 
-Promotion condition:
+Promotion condition at time of audit:
 
 - Tests pass.
 - False-positive regression tests are added.
