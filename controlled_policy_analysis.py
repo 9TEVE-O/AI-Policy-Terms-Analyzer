@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 """Controlled first-party policy discovery and analysis.
 
-This module adds a bounded URL-only workflow on top of the existing document
-scanner and policy analyzer:
+Bounded workflow:
 
-homepage URL -> one-hop first-party policy discovery -> document fetch ->
-structured extraction with provenance.
+homepage URL -> one-hop first-party policy discovery -> validated fetch ->
+existing PolicyAnalyzer extraction -> provenance-bearing JSON.
 
-It is deliberately not a general crawler, legal analyser, compliance checker,
-or safety verdict system.
+This is not a general crawler, legal analyser, compliance checker, or safety
+verdict system.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import urllib.error
+import urllib.request
 from html.parser import HTMLParser
 from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urldefrag, urljoin, urlparse, urlunparse
@@ -107,23 +108,25 @@ _STRONG_POLICY_PHRASES = (
 
 
 class _PolicyLinkParser(HTMLParser):
-    """Collect href and visible anchor text from a page."""
+    """Collect href values and visible anchor text from a page."""
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.links: List[Tuple[str, str]] = []
         self._href: Optional[str] = None
         self._text_parts: List[str] = []
-        self._anchor_depth = 0
 
-    def handle_starttag(self, tag: str, attrs: Iterable[Tuple[str, Optional[str]]]) -> None:
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: Iterable[Tuple[str, Optional[str]]],
+    ) -> None:
         if tag.lower() != "a":
             return
         href = dict(attrs).get("href")
         if href:
             self._href = href.strip()
             self._text_parts = []
-            self._anchor_depth = 1
 
     def handle_data(self, data: str) -> None:
         if self._href is not None:
@@ -136,7 +139,6 @@ class _PolicyLinkParser(HTMLParser):
         self.links.append((self._href, label))
         self._href = None
         self._text_parts = []
-        self._anchor_depth = 0
 
 
 def _normalise_http_url(base_url: str, href: str) -> Optional[str]:
@@ -158,7 +160,7 @@ def _normalise_http_url(base_url: str, href: str) -> Optional[str]:
 
 
 def _site_boundary_host(homepage_url: str) -> str:
-    """Return a conservative host boundary used for first-party discovery."""
+    """Return the conservative host boundary used for first-party discovery."""
     host = (urlparse(homepage_url).hostname or "").lower().rstrip(".")
     if host.startswith("www."):
         return host[4:]
@@ -166,19 +168,28 @@ def _site_boundary_host(homepage_url: str) -> str:
 
 
 def _is_first_party(homepage_url: str, candidate_url: str) -> bool:
-    """Treat the site host and its subdomains as first party.
-
-    The rule intentionally avoids public-suffix guessing. If the supplied
-    homepage is ``www.example.com`` then ``example.com`` and
-    ``legal.example.com`` qualify. If the supplied homepage is a narrower
-    host such as ``app.example.com``, sibling hosts are not automatically
-    trusted.
-    """
+    """Treat the site host and its subdomains as first party."""
     boundary = _site_boundary_host(homepage_url)
     candidate_host = (urlparse(candidate_url).hostname or "").lower().rstrip(".")
     if not boundary or not candidate_host:
         return False
     return candidate_host == boundary or candidate_host.endswith("." + boundary)
+
+
+class _FirstPartyRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Allow redirects only when the target remains inside the site boundary."""
+
+    def __init__(self, boundary_url: str) -> None:
+        super().__init__()
+        self.boundary_url = boundary_url
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        resolved = _normalise_http_url(req.full_url, newurl)
+        if not resolved or not _is_first_party(self.boundary_url, resolved):
+            raise ValueError(
+                f"Cross-host redirect blocked: {req.full_url!r} -> {newurl!r}"
+            )
+        return super().redirect_request(req, fp, code, msg, headers, resolved)
 
 
 def _classify_policy_link(url: str, label: str) -> Tuple[List[str], List[str], int]:
@@ -215,14 +226,12 @@ def _classify_policy_link(url: str, label: str) -> Tuple[List[str], List[str], i
 
 
 def discover_policy_links(homepage_url: str, homepage_html: str) -> Dict:
-    """Discover policy-looking links from one homepage only.
-
-    The result explicitly records selected first-party documents, external
-    policy-looking links that were excluded, and policy categories not found.
-    """
+    """Discover policy-looking links from one homepage only."""
     normalised_homepage = _normalise_http_url(homepage_url, homepage_url)
     if not normalised_homepage:
-        raise ValueError(f"A valid http/https homepage URL is required: {homepage_url!r}")
+        raise ValueError(
+            f"A valid http/https homepage URL is required: {homepage_url!r}"
+        )
 
     parser = _PolicyLinkParser()
     parser.feed(homepage_html or "")
@@ -240,7 +249,9 @@ def discover_policy_links(homepage_url: str, homepage_html: str) -> Dict:
             continue
 
         path_lower = urlparse(candidate).path.lower()
-        looks_like_content_page = any(marker in path_lower for marker in _NEGATIVE_PATH_MARKERS)
+        looks_like_content_page = any(
+            marker in path_lower for marker in _NEGATIVE_PATH_MARKERS
+        )
         strong_phrase = any(
             phrase in f"{label.lower()} {path_lower.replace('-', ' ')}"
             for phrase in _STRONG_POLICY_PHRASES
@@ -327,26 +338,73 @@ class ControlledPolicyAnalyzer:
         self,
         scanner: Optional[DocumentScanner] = None,
         analyzer: Optional[PolicyAnalyzer] = None,
+        resource_fetcher=None,
     ) -> None:
         self.scanner = scanner or DocumentScanner()
         self.analyzer = analyzer or PolicyAnalyzer()
+        self.resource_fetcher = resource_fetcher or self._fetch_first_party_resource
+
+    def _fetch_first_party_resource(self, url: str, boundary_url: str) -> Dict:
+        """Fetch one resource while blocking redirects outside the site boundary."""
+        opener = urllib.request.build_opener(_FirstPartyRedirectHandler(boundary_url))
+        request = urllib.request.Request(
+            url,
+            headers={"User-Agent": self.scanner._USER_AGENT},
+        )
+
+        with opener.open(request, timeout=self.scanner._URL_TIMEOUT) as response:
+            final_url = _normalise_http_url(url, response.geturl())
+            if not final_url or not _is_first_party(boundary_url, final_url):
+                raise ValueError(
+                    f"Final URL left first-party boundary: {response.geturl()!r}"
+                )
+
+            content_type = response.headers.get("Content-Type", "")
+            if "application/pdf" in content_type.lower():
+                return {
+                    "requested_url": url,
+                    "final_url": final_url,
+                    "content_type": content_type,
+                    "text": "",
+                    "truncated": False,
+                }
+
+            raw = response.read(self.scanner._MAX_URL_BYTES + 1)
+            truncated = len(raw) > self.scanner._MAX_URL_BYTES
+            raw = raw[: self.scanner._MAX_URL_BYTES]
+            charset = response.headers.get_content_charset() or "utf-8"
+            text = raw.decode(charset, errors="replace")
+
+        return {
+            "requested_url": url,
+            "final_url": final_url,
+            "content_type": content_type,
+            "text": text,
+            "truncated": truncated,
+        }
 
     def analyze_site(self, homepage_url: str, max_documents: int = 8) -> Dict:
         if max_documents < 1:
             raise ValueError("max_documents must be at least 1")
 
-        normalised_homepage = _normalise_http_url(homepage_url, homepage_url)
-        if not normalised_homepage:
-            raise ValueError(f"A valid http/https homepage URL is required: {homepage_url!r}")
+        requested_homepage = _normalise_http_url(homepage_url, homepage_url)
+        if not requested_homepage:
+            raise ValueError(
+                f"A valid http/https homepage URL is required: {homepage_url!r}"
+            )
 
-        # DocumentScanner owns network bounds, timeout, user-agent, and byte cap.
-        # Its raw fetch helper is reused here only to inspect homepage anchors;
-        # policy-document text still goes through scan_url().
-        homepage_html = self.scanner._fetch_url(normalised_homepage)
-        discovery = discover_policy_links(normalised_homepage, homepage_html)
+        homepage_resource = self.resource_fetcher(
+            requested_homepage,
+            requested_homepage,
+        )
+        final_homepage = homepage_resource["final_url"]
+        discovery = discover_policy_links(
+            final_homepage,
+            homepage_resource["text"],
+        )
 
         selected = discovery["selected"][:max_documents]
-        site_host = urlparse(normalised_homepage).hostname or "Unknown"
+        site_host = urlparse(final_homepage).hostname or "Unknown"
         documents: List[Dict] = []
 
         for candidate in selected:
@@ -358,46 +416,64 @@ class ControlledPolicyAnalyzer:
                 "discovered_from": candidate["discovered_from"],
             }
 
-            if urlparse(candidate["url"]).path.lower().endswith(".pdf"):
-                document.update({
-                    "status": "not_analysed",
-                    "reason": "remote_pdf_not_supported_in_controlled_v0.1",
-                    "analysis": None,
-                })
-                documents.append(document)
-                continue
-
             try:
-                text = self.scanner.scan_url(candidate["url"])
-            except Exception as exc:  # bounded per-document failure capture
-                document.update({
-                    "status": "fetch_failed",
-                    "reason": f"{type(exc).__name__}: {exc}",
-                    "analysis": None,
-                })
+                resource = self.resource_fetcher(candidate["url"], final_homepage)
+            except (ValueError, urllib.error.URLError, OSError) as exc:
+                document.update(
+                    {
+                        "status": "fetch_failed",
+                        "reason": f"{type(exc).__name__}: {exc}",
+                        "final_url": None,
+                        "analysis": None,
+                    }
+                )
                 documents.append(document)
                 continue
 
+            document["final_url"] = resource["final_url"]
+            document["content_type"] = resource["content_type"]
+            document["truncated"] = resource["truncated"]
+
+            path_is_pdf = urlparse(resource["final_url"]).path.lower().endswith(".pdf")
+            type_is_pdf = "application/pdf" in resource["content_type"].lower()
+            if path_is_pdf or type_is_pdf:
+                document.update(
+                    {
+                        "status": "not_analysed",
+                        "reason": "remote_pdf_not_supported_in_controlled_v0.1",
+                        "analysis": None,
+                    }
+                )
+                documents.append(document)
+                continue
+
+            text = self.scanner.scan_html_content(resource["text"])
             if not text.strip():
-                document.update({
-                    "status": "not_analysed",
-                    "reason": "no_visible_text_extracted",
-                    "analysis": None,
-                })
+                document.update(
+                    {
+                        "status": "not_analysed",
+                        "reason": "no_visible_text_extracted",
+                        "analysis": None,
+                    }
+                )
                 documents.append(document)
                 continue
 
-            document.update({
-                "status": "analysed",
-                "reason": None,
-                "analysis": self.analyzer.analyze(text, site_host),
-            })
+            document.update(
+                {
+                    "status": "analysed",
+                    "reason": None,
+                    "analysis": self.analyzer.analyze(text, site_host),
+                }
+            )
             documents.append(document)
 
         return {
             "input_url": homepage_url,
-            "homepage_url": normalised_homepage,
+            "homepage_url": final_homepage,
+            "requested_homepage_url": requested_homepage,
             "site_host": site_host,
+            "homepage_truncated": homepage_resource["truncated"],
             "discovery_scope": discovery["scope"],
             "documents_discovered": len(discovery["selected"]),
             "documents_selected": len(selected),
@@ -408,8 +484,12 @@ class ControlledPolicyAnalyzer:
             "limitations": [
                 "Discovery is limited to links present on the supplied homepage.",
                 "Only first-party host links are selected automatically.",
+                "Cross-host redirects are blocked before document analysis.",
                 "Remote PDF policy documents are reported but not analysed in v0.1.",
-                "Extraction identifies textual signals; it does not provide legal advice, compliance validation, or a safe/unsafe verdict.",
+                (
+                    "Extraction identifies textual signals; it does not provide "
+                    "legal advice, compliance validation, or a safe/unsafe verdict."
+                ),
             ],
         }
 
@@ -421,16 +501,22 @@ def main() -> None:
             "the existing structured extraction pipeline."
         )
     )
-    parser.add_argument("url", help="Homepage URL, for example https://example.com")
+    parser.add_argument(
+        "url",
+        help="Homepage URL, for example https://example.com",
+    )
     parser.add_argument(
         "--limit",
         type=int,
         default=8,
-        help="Maximum number of discovered policy documents to analyse (default: 8)",
+        help="Maximum number of policy documents to analyse (default: 8)",
     )
     args = parser.parse_args()
 
-    result = ControlledPolicyAnalyzer().analyze_site(args.url, max_documents=args.limit)
+    result = ControlledPolicyAnalyzer().analyze_site(
+        args.url,
+        max_documents=args.limit,
+    )
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
 
