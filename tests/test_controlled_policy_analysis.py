@@ -113,6 +113,30 @@ def test_analyze_site_runs_existing_analyzer_with_provenance():
     assert "https://vendor.example.net/privacy" not in fetched_urls
 
 
+def test_www_homepage_uses_boundary_host_for_analysis_identity():
+    homepage = '<a href="/privacy">Privacy Policy</a>'
+    fetcher = FakeResourceFetcher(
+        {
+            "https://www.example.com": {
+                "text": homepage,
+                "content_type": "text/html",
+            },
+            "https://www.example.com/privacy": {
+                "text": "Privacy Policy\nWe use AWS.",
+                "content_type": "text/html",
+            },
+        }
+    )
+
+    result = ControlledPolicyAnalyzer(
+        scanner=DocumentScanner(),
+        resource_fetcher=fetcher,
+    ).analyze_site("https://www.example.com")
+
+    assert result["site_host"] == "example.com"
+    assert result["documents"][0]["analysis"]["company_name"] == "example.com"
+
+
 def test_document_limit_is_enforced_after_discovery():
     fetcher = FakeResourceFetcher()
     result = ControlledPolicyAnalyzer(
