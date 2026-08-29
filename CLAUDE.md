@@ -30,8 +30,8 @@ flake8 . --count --max-line-length=120 --statistics --exit-zero
 ## Controlled URL workflow
 
 ```bash
-analyze-site https://example.com
-analyze-site https://example.com --limit 5
+python controlled_policy_analysis.py https://example.com
+python controlled_policy_analysis.py https://example.com --limit 5
 ```
 
 The controlled workflow has these limits:
@@ -56,7 +56,7 @@ Structured extractors are preferred for new extraction behaviour. Legacy fields 
 
 `PolicyAnalyzer` has no config-file loader, no environment-variable configuration system, no `config=` constructor argument, and no general CLI configuration flags. Detection customisation is done by changing public instance attributes before `analyze()`.
 
-`analyze-site` is a separate narrow CLI. It accepts a homepage URL and optional `--limit`; that is not a general configuration system.
+`controlled_policy_analysis.py` has a separate narrow command surface. It accepts a homepage URL and optional `--limit`; that is not a general configuration system. It is repository-local in v0.1 and is not registered as an installed console script.
 
 `docs/examples/*.json` are reference snippets only and are not loaded automatically.
 
