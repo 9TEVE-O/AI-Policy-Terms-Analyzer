@@ -23,12 +23,14 @@ all = [
 
 [project.scripts]
 analyze-policy = "quick_start:main"
+analyze-site = "controlled_policy_analysis:main"
 
 [tool.setuptools]
 py-modules = [
     "ai_operator_os",
     "ai_policy_researcher",
     "batch_analyzer",
+    "controlled_policy_analysis",
     "document_scanner",
     "example_usage",
     "extraction_modules",
