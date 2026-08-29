@@ -17,26 +17,26 @@ surface. Specifically, the following do not exist for `PolicyAnalyzer`:
 If older documentation or generated code suggests those features exist, treat
 it as stale unless the implementation and tests establish otherwise.
 
-## Controlled site-analysis CLI
+## Controlled site-analysis command
 
-The repository now includes a separate bounded runner for URL-only policy
-discovery:
+The repository includes a separate bounded URL-only runner:
 
 ```bash
-analyze-site https://example.com
-analyze-site https://example.com --limit 5
+python controlled_policy_analysis.py https://example.com
+python controlled_policy_analysis.py https://example.com --limit 5
 ```
 
-`analyze-site` accepts:
+The runner accepts:
 
 - a required homepage URL; and
 - optional `--limit`, which only caps the number of discovered policy documents
   sent through the analyser.
 
-This narrow runner is not a general configuration system. Its discovery scope
-is intentionally constrained to one-hop links present on the supplied homepage
-and qualifying first-party hosts. See `controlled_policy_analysis.py` and
-`CLAUDE.md` for the current boundaries.
+This narrow runner is not a general configuration system. It is repository-local
+in v0.1 rather than registered as an installed console script. Its discovery
+scope is intentionally constrained to one-hop links present on the supplied
+homepage and qualifying first-party hosts. See `controlled_policy_analysis.py`
+and `CLAUDE.md` for the current boundaries.
 
 ## What is supported for detection customisation
 
