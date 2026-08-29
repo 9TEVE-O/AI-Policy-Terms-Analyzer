@@ -404,7 +404,7 @@ class ControlledPolicyAnalyzer:
         )
 
         selected = discovery["selected"][:max_documents]
-        site_host = urlparse(final_homepage).hostname or "Unknown"
+        site_host = _site_boundary_host(final_homepage) or "Unknown"
         documents: List[Dict] = []
 
         for candidate in selected:
