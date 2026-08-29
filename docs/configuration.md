@@ -1,29 +1,48 @@
 # Configuration
 
-## Current status
+## PolicyAnalyzer configuration status
 
-`PolicyAnalyzer` has **no configuration-file loader, no environment-variable
-configuration system, and no CLI flags**. Specifically, none of the
-following exist in this codebase:
+`PolicyAnalyzer` has **no configuration-file loader and no environment-variable
+configuration system**. It also has no general-purpose CLI configuration
+surface. Specifically, the following do not exist for `PolicyAnalyzer`:
 
-- Automatic discovery of `policyanalyzerrc.json` / `.yml` / `.yaml` / `.py`
-  (or any other config file)
-- `POLICY_ANALYZER_*` environment variables
-- `--config`, `--company`, `--output-format`, or `--save-to` CLI flags
-- A `config=` argument on `PolicyAnalyzer()`
-- Output-format switching (`text` / `json` / `yaml`), batch auto-save
-  options, or result filtering driven by configuration
+- automatic discovery of `policyanalyzerrc.json` / `.yml` / `.yaml` / `.py`
+  (or any other config file);
+- `POLICY_ANALYZER_*` environment variables;
+- `--config`, `--company`, `--output-format`, or `--save-to` configuration flags;
+- a `config=` argument on `PolicyAnalyzer()`;
+- output-format switching (`text` / `json` / `yaml`), batch auto-save options,
+  or result filtering driven by configuration.
 
-If you have seen documentation, examples, or generated code suggesting
-otherwise, they describe functionality that is not implemented here.
+If older documentation or generated code suggests those features exist, treat
+it as stale unless the implementation and tests establish otherwise.
 
-## What is actually supported: direct attribute customisation
+## Controlled site-analysis command
 
-`PolicyAnalyzer` stores its keyword lists as plain public instance
-attributes, set in `__init__`. `tech_keywords` in particular is read fresh
-every time `analyze()` runs, so you can edit it in Python before calling
-`analyze()` and the change takes effect immediately — no config file or
-re-instantiation required:
+The repository includes a separate bounded URL-only runner:
+
+```bash
+python controlled_policy_analysis.py https://example.com
+python controlled_policy_analysis.py https://example.com --limit 5
+```
+
+The runner accepts:
+
+- a required homepage URL; and
+- optional `--limit`, which only caps the number of discovered policy documents
+  sent through the analyser.
+
+This narrow runner is not a general configuration system. It is repository-local
+in v0.1 rather than registered as an installed console script. Its discovery
+scope is intentionally constrained to one-hop links present on the supplied
+homepage and qualifying first-party hosts. See `controlled_policy_analysis.py`
+and `CLAUDE.md` for the current boundaries.
+
+## What is supported for detection customisation
+
+`PolicyAnalyzer` stores its keyword lists as plain public instance attributes.
+`tech_keywords` is read each time `analyze()` runs, so it can be changed in
+Python before analysis:
 
 ```python
 from policy_analyzer import PolicyAnalyzer
@@ -41,13 +60,11 @@ category or extend an existing one the same way.
 ## Reference keyword lists (`docs/examples/`)
 
 `docs/examples/dating-site-bot-detection.json` and
-`docs/examples/fintech-analysis.json` are **not read by the application** —
-there is no loader that consumes them. They are illustrative reference
-snippets showing keyword groupings for particular use cases (dating-site
-bot/AI detection, fintech-specific platforms and compliance terms). If one
-is useful to you, copy the keyword lists under its `analyzer.tech_keywords`
-key into your own script as shown above. The `output` section in each file
-does not correspond to any supported behaviour and should be ignored.
+`docs/examples/fintech-analysis.json` are **not read by the application**.
+There is no loader that consumes them. They are illustrative reference snippets
+showing keyword groupings for particular use cases. If useful, copy the keyword
+lists into your own Python setup. The `output` section in each file does not
+correspond to supported automatic behaviour and should be ignored.
 
 ## See also
 
