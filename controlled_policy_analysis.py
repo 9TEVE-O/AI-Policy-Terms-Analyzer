@@ -146,7 +146,20 @@ def _normalise_http_url(base_url: str, href: str) -> Optional[str]:
     if not href:
         return None
 
-    absolute = urljoin(base_url, href.strip())
+    href = href.strip()
+    parsed_href = urlparse(href)
+    if not (
+        parsed_href.scheme
+        or parsed_href.netloc
+        or parsed_href.path
+        or parsed_href.params
+        or parsed_href.query
+    ):
+        # Fragment-only targets such as #, #privacy, or #/privacy-policy are
+        # not distinct documents once the fragment is stripped.
+        return None
+
+    absolute = urljoin(base_url, href)
     absolute, _fragment = urldefrag(absolute)
     parsed = urlparse(absolute)
 
@@ -253,18 +266,19 @@ def discover_policy_links(homepage_url: str, homepage_html: str) -> Dict:
             marker in path_lower for marker in _NEGATIVE_PATH_MARKERS
         )
         strong_phrase = any(
-            phrase in f"{label.lower()} {path_lower.replace('-', ' ')}"
+            phrase in f"{label.lower()} {path_lower.replace('-', ' ').replace('_', ' ')}"
             for phrase in _STRONG_POLICY_PHRASES
         )
         if looks_like_content_page and not strong_phrase:
-            excluded_by_url[candidate] = {
-                "url": candidate,
-                "label": label,
-                "categories": categories,
-                "matched_terms": matched_terms,
-                "score": score,
-                "reason": "content_page_path",
-            }
+            if candidate not in selected_by_url:
+                excluded_by_url[candidate] = {
+                    "url": candidate,
+                    "label": label,
+                    "categories": categories,
+                    "matched_terms": matched_terms,
+                    "score": score,
+                    "reason": "content_page_path",
+                }
             continue
 
         if not _is_first_party(normalised_homepage, candidate):
@@ -278,6 +292,7 @@ def discover_policy_links(homepage_url: str, homepage_html: str) -> Dict:
             }
             continue
 
+        excluded_by_url.pop(candidate, None)
         existing = selected_by_url.get(candidate)
         if existing:
             existing["categories"] = sorted(

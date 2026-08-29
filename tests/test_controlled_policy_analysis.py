@@ -203,3 +203,57 @@ def test_invalid_homepage_scheme_is_rejected():
         assert False, "Expected ValueError for non-http homepage"
     except ValueError:
         pass
+
+
+def test_fragment_only_links_are_not_treated_as_homepage_documents():
+    html = """
+    <html><body>
+      <a href="#">Privacy Policy</a>
+      <a href="#privacy">Privacy Policy</a>
+      <a href="#/privacy-policy">Privacy Policy</a>
+      <a href="/privacy#section">Privacy Policy</a>
+    </body></html>
+    """
+    result = discover_policy_links("https://example.com", html)
+
+    selected_urls = {item["url"] for item in result["selected"]}
+    assert selected_urls == {"https://example.com/privacy"}
+    assert "https://example.com" not in selected_urls
+    assert "https://example.com/" not in selected_urls
+
+
+def test_selected_url_is_not_also_recorded_as_excluded():
+    pages = (
+        """
+        <html><body>
+          <a href="/blog/privacy-engineering">Learn more</a>
+          <a href="/blog/privacy-engineering">Privacy Policy</a>
+        </body></html>
+        """,
+        """
+        <html><body>
+          <a href="/blog/privacy-engineering">Privacy Policy</a>
+          <a href="/blog/privacy-engineering">Learn more</a>
+        </body></html>
+        """,
+    )
+    for html in pages:
+        result = discover_policy_links("https://example.com", html)
+        selected_urls = {item["url"] for item in result["selected"]}
+        excluded_urls = {item["url"] for item in result["excluded_policy_candidates"]}
+        assert "https://example.com/blog/privacy-engineering" in selected_urls
+        assert "https://example.com/blog/privacy-engineering" not in excluded_urls
+
+
+def test_underscore_path_still_qualifies_as_strong_policy_phrase():
+    html = """
+    <html><body>
+      <a href="/blog/privacy_policy">Read more</a>
+    </body></html>
+    """
+    result = discover_policy_links("https://example.com", html)
+
+    selected_urls = {item["url"] for item in result["selected"]}
+    excluded_urls = {item["url"] for item in result["excluded_policy_candidates"]}
+    assert "https://example.com/blog/privacy_policy" in selected_urls
+    assert "https://example.com/blog/privacy_policy" not in excluded_urls
