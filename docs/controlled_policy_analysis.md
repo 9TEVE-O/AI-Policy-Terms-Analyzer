@@ -20,20 +20,21 @@ homepage URL
 
 ## Usage
 
-After installing the project:
+From the repository after installing dependencies:
 
 ```bash
 pip install -e ".[all]"
-analyze-site https://example.com
+python controlled_policy_analysis.py https://example.com
 ```
 
 Optionally cap the number of selected documents analysed:
 
 ```bash
-analyze-site https://example.com --limit 5
+python controlled_policy_analysis.py https://example.com --limit 5
 ```
 
-The command emits JSON.
+The command emits JSON. The runner is repository-local in v0.1 and is not
+registered as an installed console script.
 
 ## Discovery categories
 
