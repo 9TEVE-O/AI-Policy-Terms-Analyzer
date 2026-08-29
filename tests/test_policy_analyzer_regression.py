@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
-"""Standard-library regression tests for PolicyAnalyzer."""
+"""Regression tests for PolicyAnalyzer's existing public output contract."""
 
-import pathlib
-import sys
 import unittest
-
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT))
 
 from batch_analyzer import analyze_batch_from_dict
 from policy_analyzer import PolicyAnalyzer
@@ -18,7 +13,8 @@ Our chatbot is powered by OpenAI GPT models.
 Our REST API supports webhooks for integrations.
 We use Stripe for payment processing and SendGrid for email delivery.
 We may share your data with payment processors and analytics providers.
-Contact privacy@example.com or visit https://example.com/privacy.
+Contact privacy@example.com
+Privacy: https://example.com/privacy
 """
 
 
