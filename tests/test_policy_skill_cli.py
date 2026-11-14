@@ -86,3 +86,25 @@ def test_installer_previews_without_write_and_refuses_overwrite(tmp_path):
         assert False, "Existing install must be protected"
     except FileExistsError:
         pass
+
+
+def test_installer_refuses_destination_inside_source_tree(tmp_path):
+    spec = importlib.util.spec_from_file_location("policy_skill_installer_guard", INSTALLER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    skill = ROOT / "skill"
+    linked = tmp_path / "linked-skill"
+    linked.symlink_to(skill)
+    for project_root in (skill, skill / "scripts", linked):
+        for agent in ("claude", "codex"):
+            for execute in (False, True):
+                try:
+                    module.install(agent=agent, scope="project", project_root=str(project_root),
+                                   execute=execute)
+                    assert False, "Install inside the skill source must be refused"
+                except ValueError as error:
+                    assert "source tree" in str(error)
+    assert not (skill / ".claude").exists()
+    assert not (skill / ".agents").exists()
+    assert not (skill / "scripts" / ".claude").exists()
+    assert not (skill / "scripts" / ".agents").exists()

@@ -26,6 +26,10 @@ def install(*, agent: str, scope: str, project_root: str | None, execute: bool) 
         target = Path.home() / AGENTS[agent] / SKILL_NAME
     if target.exists() or target.is_symlink():
         raise FileExistsError(f"Refusing to overwrite an existing skill: {target}")
+    # copytree lists the source after parents are created. A destination inside
+    # this tree would be copied into itself until the path or disk is exhausted.
+    if target.resolve().is_relative_to(source):
+        raise ValueError(f"Refusing to install the skill inside its own source tree: {target}")
     if execute:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(source, target, symlinks=False)
