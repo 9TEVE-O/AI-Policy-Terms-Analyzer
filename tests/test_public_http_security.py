@@ -20,6 +20,8 @@ from document_scanner import DocumentScanner
     "http://100.64.0.1/", "http://example.com:8080",
     "ftp://example.com", "https://user:pass@example.com",
     "http://intranet/", "http://[::ffff:192.168.1.8]/",
+    "http://224.0.0.1/", "http://[ff02::1]/",
+    "http://[64:ff9b::192.168.1.1]/", "http://255.255.255.255/",
 ])
 def test_static_private_and_internal_destinations_denied(url):
     with pytest.raises(safe.UnsafeNetworkTarget):
