@@ -273,6 +273,7 @@ EXPECTED_MODULES = {
     "extraction_modules",
     "key_point_condenser",
     "policy_analyzer",
+    "public_http",
     "quick_start",
 }
 
@@ -288,7 +289,7 @@ def test_py_modules_key_present(config):
 
 def test_py_modules_count(config):
     modules = config["tool"]["setuptools"]["py-modules"]
-    assert len(modules) == 9, f"Expected 9 py-modules, got {len(modules)}: {modules}"
+    assert len(modules) == 10, f"Expected 10 py-modules, got {len(modules)}: {modules}"
 
 
 def test_py_modules_no_duplicates(config):

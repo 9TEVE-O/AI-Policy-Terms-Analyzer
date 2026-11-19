@@ -34,5 +34,6 @@ py-modules = [
     "extraction_modules",
     "key_point_condenser",
     "policy_analyzer",
+    "public_http",
     "quick_start",
 ]

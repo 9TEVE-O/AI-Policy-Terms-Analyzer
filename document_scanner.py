@@ -14,9 +14,8 @@ Supported input types
   installed.
 * PDF files (.pdf) — requires the optional ``pdfplumber`` package; raises
   ``ImportError`` with a helpful message when it is absent.
-* Remote URLs (http/https) — always available via ``urllib.request``; the
-  optional ``requests`` package is used when present for better timeout and
-  redirect handling.
+* Remote HTTP(S) URLs use a public-only, DNS-pinned stdlib transport.
+  Proxies, internal network destinations and non-standard ports are rejected.
 """
 
 import html
@@ -26,6 +25,8 @@ import urllib.error
 import urllib.request
 from html.parser import HTMLParser
 from typing import Dict
+
+from public_http import build_public_opener, validate_public_url
 
 try:
     import pdfplumber as _pdfplumber  # noqa: F401
@@ -38,13 +39,6 @@ try:
     _HAS_BS4 = True
 except ImportError:
     _HAS_BS4 = False
-
-try:
-    import requests as _requests  # noqa: F401
-    _HAS_REQUESTS = True
-except ImportError:
-    _HAS_REQUESTS = False
-
 
 class _TextExtractorParser(HTMLParser):
     """Minimal HTML parser that strips tags while preserving block boundaries."""
@@ -149,8 +143,7 @@ class DocumentScanner:
 
     def scan_url(self, url: str) -> str:
         """Fetch an HTTP(S) page and extract its visible text."""
-        if not url.startswith(('http://', 'https://')):
-            raise ValueError(f"Only http/https URLs are supported, got: {url!r}")
+        validate_public_url(url)
 
         html_content = self._fetch_url(url)
         return self.scan_html_content(html_content)
@@ -192,40 +185,21 @@ class DocumentScanner:
         }
 
     def _fetch_url(self, url: str) -> str:
-        """Fetch URL content using requests when available, otherwise urllib."""
-        if _HAS_REQUESTS:
-            import requests
-
-            with requests.get(
-                url,
-                timeout=self._URL_TIMEOUT,
-                headers={'User-Agent': self._USER_AGENT},
-                stream=True,
-            ) as response:
-                response.raise_for_status()
-                content = bytearray()
-                for chunk in response.iter_content(chunk_size=8192):
-                    if not chunk:
-                        continue
-                    remaining = self._MAX_URL_BYTES - len(content)
-                    if remaining <= 0:
-                        break
-                    content.extend(chunk[:remaining])
-                    if len(content) >= self._MAX_URL_BYTES:
-                        break
-                return bytes(content).decode(
-                    response.encoding or 'utf-8', errors='replace'
-                )
-
+        """Fetch public HTML through a pinned, proxy-free connection."""
+        validate_public_url(url)
         req = urllib.request.Request(
             url, headers={'User-Agent': self._USER_AGENT}
         )
-        with urllib.request.urlopen(req, timeout=self._URL_TIMEOUT) as resp:
-            raw = resp.read(self._MAX_URL_BYTES)
+        with build_public_opener().open(req, timeout=self._URL_TIMEOUT) as resp:
             content_type = resp.headers.get('Content-Type', '')
-
-        charset_match = re.search(r'charset=([^\s;]+)', content_type)
-        encoding = charset_match.group(1) if charset_match else 'utf-8'
+            if content_type and not content_type.lower().startswith(
+                ('text/html', 'text/plain', 'application/xhtml+xml')
+            ):
+                raise ValueError("Unsupported remote content type")
+            raw = resp.read(self._MAX_URL_BYTES + 1)
+            if len(raw) > self._MAX_URL_BYTES:
+                raise ValueError("Remote document exceeds the byte limit")
+            encoding = resp.headers.get_content_charset() or 'utf-8'
         return raw.decode(encoding, errors='replace')
 
     def _clean_text(self, text: str) -> str:
