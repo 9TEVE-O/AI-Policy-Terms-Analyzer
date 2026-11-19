@@ -152,6 +152,30 @@ def test_document_limit_is_enforced_after_discovery():
     assert len(fetcher.calls) == 3  # homepage plus two selected documents
 
 
+def test_truncated_policy_is_not_presented_as_completed_analysis():
+    fetcher = FakeResourceFetcher(
+        {
+            "https://example.com": {
+                "text": '<a href="/privacy">Privacy Policy</a>',
+                "content_type": "text/html",
+            },
+            "https://example.com/privacy": {
+                "text": "Privacy Policy. We use Stripe.",
+                "content_type": "text/html",
+                "truncated": True,
+            },
+        }
+    )
+    result = ControlledPolicyAnalyzer(resource_fetcher=fetcher).analyze_site(
+        "https://example.com"
+    )
+    document = result["documents"][0]
+    assert document["truncated"] is True
+    assert document["status"] == "not_analysed"
+    assert document["reason"] == "document_truncated"
+    assert document["analysis"] is None
+
+
 def test_remote_pdf_is_reported_without_text_analysis():
     homepage = '<a href="/legal/privacy-policy.pdf">Privacy Policy</a>'
     fetcher = FakeResourceFetcher(
