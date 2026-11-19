@@ -186,6 +186,8 @@ class _FirstPartyRedirectHandler(_PublicRedirectHandler):
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         resolved = _normalise_http_url(req.full_url, newurl)
+        if resolved:
+            validate_public_url(resolved)
         if not resolved or not _is_first_party(self.boundary_url, resolved):
             raise ValueError(
                 f"Cross-host redirect blocked: {req.full_url!r} -> {newurl!r}"
