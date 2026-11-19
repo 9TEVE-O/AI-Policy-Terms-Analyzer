@@ -51,7 +51,16 @@ def validate_public_url(url):
 
 def _is_public(address):
     mapped = getattr(address, "ipv4_mapped", None)
-    return bool(address.is_global and (mapped is None or mapped.is_global))
+    return bool(
+        address.is_global
+        and not address.is_multicast
+        and not address.is_reserved
+        and not address.is_unspecified
+        and not address.is_link_local
+        and (mapped is None or (
+            mapped.is_global and not mapped.is_multicast and not mapped.is_reserved
+        ))
+    )
 
 
 def _public_addresses(host, port):
