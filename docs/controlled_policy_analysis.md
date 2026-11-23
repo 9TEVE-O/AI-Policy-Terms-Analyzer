@@ -86,6 +86,8 @@ been fetched successfully.
   non-standard ports are rejected; separate network-level egress controls remain necessary;
 - no login/session workflows;
 - remote PDF policy links are reported but not analysed;
+- fetched policy documents exceeding the byte cap are marked `not_analysed`
+  with reason `document_truncated`, rather than treated as completed analyses;
 - no determination that a discovered document is current, applicable,
   complete, governing, or legally controlling;
 - no safe/unsafe verdict;

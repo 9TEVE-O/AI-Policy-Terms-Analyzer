@@ -454,6 +454,17 @@ class ControlledPolicyAnalyzer:
                 documents.append(document)
                 continue
 
+            if resource["truncated"]:
+                document.update(
+                    {
+                        "status": "not_analysed",
+                        "reason": "document_truncated",
+                        "analysis": None,
+                    }
+                )
+                documents.append(document)
+                continue
+
             text = self.scanner.scan_html_content(resource["text"])
             if not text.strip():
                 document.update(
