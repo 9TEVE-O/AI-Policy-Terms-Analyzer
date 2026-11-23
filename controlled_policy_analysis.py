@@ -21,6 +21,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urldefrag, urljoin, urlparse, urlunparse
 
 from document_scanner import DocumentScanner
+from public_http import _PublicRedirectHandler, build_public_opener, validate_public_url
 from policy_analyzer import PolicyAnalyzer
 
 
@@ -176,7 +177,7 @@ def _is_first_party(homepage_url: str, candidate_url: str) -> bool:
     return candidate_host == boundary or candidate_host.endswith("." + boundary)
 
 
-class _FirstPartyRedirectHandler(urllib.request.HTTPRedirectHandler):
+class _FirstPartyRedirectHandler(_PublicRedirectHandler):
     """Allow redirects only when the target remains inside the site boundary."""
 
     def __init__(self, boundary_url: str) -> None:
@@ -185,6 +186,8 @@ class _FirstPartyRedirectHandler(urllib.request.HTTPRedirectHandler):
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         resolved = _normalise_http_url(req.full_url, newurl)
+        if resolved:
+            validate_public_url(resolved)
         if not resolved or not _is_first_party(self.boundary_url, resolved):
             raise ValueError(
                 f"Cross-host redirect blocked: {req.full_url!r} -> {newurl!r}"
@@ -346,7 +349,10 @@ class ControlledPolicyAnalyzer:
 
     def _fetch_first_party_resource(self, url: str, boundary_url: str) -> Dict:
         """Fetch one resource while blocking redirects outside the site boundary."""
-        opener = urllib.request.build_opener(_FirstPartyRedirectHandler(boundary_url))
+        validate_public_url(url)
+        if not _is_first_party(boundary_url, url):
+            raise ValueError("Resource is outside first-party boundary")
+        opener = build_public_opener(_FirstPartyRedirectHandler(boundary_url))
         request = urllib.request.Request(
             url,
             headers={"User-Agent": self.scanner._USER_AGENT},
@@ -387,6 +393,7 @@ class ControlledPolicyAnalyzer:
         if max_documents < 1:
             raise ValueError("max_documents must be at least 1")
 
+        validate_public_url(homepage_url)
         requested_homepage = _normalise_http_url(homepage_url, homepage_url)
         if not requested_homepage:
             raise ValueError(

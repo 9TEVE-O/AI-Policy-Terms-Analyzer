@@ -80,6 +80,10 @@ been fetched successfully.
 - one-hop discovery from the supplied homepage only;
 - no site-wide crawling or sitemap traversal;
 - no external-host following;
+- public-only HTTP(S) transport with DNS answers validated and pinned to the
+  socket destination, HTTPS hostname verification, and ambient proxy bypass disabled;
+- loopback, private, link-local and non-global addresses, internal hostnames and
+  non-standard ports are rejected; separate network-level egress controls remain necessary;
 - no login/session workflows;
 - remote PDF policy links are reported but not analysed;
 - fetched policy documents exceeding the byte cap are marked `not_analysed`
