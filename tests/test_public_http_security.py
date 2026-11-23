@@ -59,6 +59,21 @@ def test_pinned_socket_address_prevents_second_dns_resolution():
         resolver.assert_called_once_with("example.com", 443, type=socket.SOCK_STREAM)
 
 
+def test_socket_creation_failure_retries_next_validated_address():
+    answers = [
+        (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("2606:4700:4700::1111", 443, 0, 0)),
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("1.1.1.1", 443)),
+    ]
+    connected = Mock()
+    with patch.object(safe.socket, "getaddrinfo", return_value=answers), patch.object(
+        safe.socket, "socket", side_effect=[OSError("Address family unavailable"), connected]
+    ) as create_socket:
+        assert safe._connect_public("example.com", 443, 5, None) is connected
+    assert create_socket.call_count == 2
+    connected.connect.assert_called_once_with(answers[1][-1])
+    connected.close.assert_not_called()
+
+
 def test_https_uses_original_hostname_for_tls_validation():
     connection = safe._PublicHTTPSConnection("example.com", timeout=5)
     remote = Mock()
@@ -104,6 +119,34 @@ def test_first_party_redirect_handler_is_the_only_redirect_handler():
         )
 
 
+@pytest.mark.parametrize("location,error", [
+    ("/terms", None),
+    ("https://vendor.example.net/terms", ValueError),
+    ("https://example.local/terms", safe.UnsafeNetworkTarget),
+])
+def test_first_party_308_dispatch_applies_redirect_policy(location, error):
+    opener = safe.build_public_opener(_FirstPartyRedirectHandler("https://example.com"))
+    request = urllib.request.Request("https://example.com/privacy")
+    request.timeout = 5
+    headers = Message()
+    headers["Location"] = location
+    response = Mock()
+
+    def dispatch():
+        return opener.error("https", request, response, 308, "Permanent Redirect", headers)
+
+    with patch.object(opener, "open") as follow:
+        if error:
+            with pytest.raises(error) as exc:
+                dispatch()
+            assert type(exc.value) is error
+            follow.assert_not_called()
+        else:
+            assert dispatch() is follow.return_value
+            follow.assert_called_once()
+            assert follow.call_args.args[0].full_url == "https://example.com/terms"
+
+
 def test_http_tunnel_rejected():
     connection = safe._PublicHTTPSConnection("example.com")
     connection._tunnel_host = "internal.example"
@@ -146,6 +189,24 @@ def test_scanner_uses_safe_opener_without_network():
     factory.assert_called_once()
     assert "Policy content" in text
     assert opener.open.call_args.args[0].full_url == "https://example.com/privacy"
+
+
+def test_scanner_normalizes_international_policy_url():
+    opener = Mock()
+    opener.open.return_value = StubResponse(b"<p>Policy content</p>")
+    with patch("document_scanner.build_public_opener", return_value=opener):
+        text = DocumentScanner().scan_url("https://bücher.example/datenschütz%2farchiv?lang=日本語&raw=%3D")
+    assert "Policy content" in text
+    assert opener.open.call_args.args[0].full_url == (
+        "https://xn--bcher-kva.example/datensch%C3%BCtz%2farchiv?lang=%E6%97%A5%E6%9C%AC%E8%AA%9E&raw=%3D"
+    )
+
+
+def test_scanner_checks_hostname_after_idna_normalization():
+    with patch("document_scanner.build_public_opener") as factory:
+        with pytest.raises(safe.UnsafeNetworkTarget):
+            DocumentScanner().scan_url("https://example.ｌocal/terms")
+    factory.assert_not_called()
 
 
 @pytest.mark.parametrize("data,content_type,error", [

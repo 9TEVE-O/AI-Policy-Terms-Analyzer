@@ -86,8 +86,9 @@ def _connect_public(host, port, timeout, source_address):
     addresses = _public_addresses(host, port)
     last_error = None
     for family, kind, proto, _canonical, sockaddr in addresses:
-        sock = socket.socket(family, kind, proto)
+        sock = None
         try:
+            sock = socket.socket(family, kind, proto)
             if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
                 sock.settimeout(timeout)
             if source_address:
@@ -96,7 +97,8 @@ def _connect_public(host, port, timeout, source_address):
             return sock
         except OSError as exc:
             last_error = exc
-            sock.close()
+            if sock is not None:
+                sock.close()
     raise last_error or OSError("Unable to connect to public destination")
 
 
@@ -141,8 +143,15 @@ class _PublicHTTPSHandler(urllib.request.HTTPSHandler):
 
 
 class _PublicRedirectHandler(urllib.request.HTTPRedirectHandler):
+    http_error_308 = urllib.request.HTTPRedirectHandler.http_error_302
+
     def redirect_request(self, request, fp, code, msg, headers, newurl):
         validate_public_url(urllib.parse.urljoin(request.full_url, newurl))
+        # Python 3.9 also rejects 308 when constructing the next request.
+        # Use 307's equivalent rules for GET/HEAD on that implementation.
+        if (code == 308 and not hasattr(urllib.request.HTTPRedirectHandler, "http_error_308")
+                and request.get_method() in ("GET", "HEAD")):
+            code = 307
         return super().redirect_request(request, fp, code, msg, headers, newurl)
 
 

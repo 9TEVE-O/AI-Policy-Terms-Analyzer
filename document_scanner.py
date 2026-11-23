@@ -22,11 +22,12 @@ import html
 import os
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 from typing import Dict
 
-from public_http import build_public_opener, validate_public_url
+from public_http import UnsafeNetworkTarget, build_public_opener, validate_public_url
 
 try:
     import pdfplumber as _pdfplumber  # noqa: F401
@@ -143,8 +144,6 @@ class DocumentScanner:
 
     def scan_url(self, url: str) -> str:
         """Fetch an HTTP(S) page and extract its visible text."""
-        validate_public_url(url)
-
         html_content = self._fetch_url(url)
         return self.scan_html_content(html_content)
 
@@ -186,7 +185,24 @@ class DocumentScanner:
 
     def _fetch_url(self, url: str) -> str:
         """Fetch public HTML through a pinned, proxy-free connection."""
-        validate_public_url(url)
+        parsed = validate_public_url(url)
+        # Keep existing escapes and URI delimiters while encoding Unicode.
+        if not url.isascii():
+            authority = parsed.netloc
+            if not authority.isascii():
+                try:
+                    host = parsed.hostname.encode('idna').decode('ascii')
+                except UnicodeError as exc:
+                    raise UnsafeNetworkTarget("Invalid destination hostname") from exc
+                if any(char in host for char in '/?#@:\\[]'):
+                    raise UnsafeNetworkTarget("Invalid destination hostname")
+                authority = host if parsed.port is None else f'{host}:{parsed.port}'
+
+            url = urllib.parse.quote(
+                parsed._replace(netloc=authority).geturl(),
+                safe=":/?#[]@!$&'()*+,;=%",
+            )
+            validate_public_url(url)
         req = urllib.request.Request(
             url, headers={'User-Agent': self._USER_AGENT}
         )
