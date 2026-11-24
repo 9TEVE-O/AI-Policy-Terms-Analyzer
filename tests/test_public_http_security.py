@@ -1,5 +1,6 @@
 """Offline, adversarial tests for public-only policy HTTP(S) egress."""
 import socket
+import urllib.error
 import urllib.request
 from email.message import Message
 from unittest.mock import Mock, patch
@@ -119,12 +120,13 @@ def test_first_party_redirect_handler_is_the_only_redirect_handler():
         )
 
 
+@pytest.mark.parametrize("code", [301, 302, 303, 307, 308])
 @pytest.mark.parametrize("location,error", [
     ("/terms", None),
     ("https://vendor.example.net/terms", ValueError),
     ("https://example.local/terms", safe.UnsafeNetworkTarget),
 ])
-def test_first_party_308_dispatch_applies_redirect_policy(location, error):
+def test_first_party_redirect_dispatch_applies_policy_without_draining(code, location, error):
     opener = safe.build_public_opener(_FirstPartyRedirectHandler("https://example.com"))
     request = urllib.request.Request("https://example.com/privacy")
     request.timeout = 5
@@ -133,7 +135,7 @@ def test_first_party_308_dispatch_applies_redirect_policy(location, error):
     response = Mock()
 
     def dispatch():
-        return opener.error("https", request, response, 308, "Permanent Redirect", headers)
+        return opener.error("https", request, response, code, "Redirect", headers)
 
     with patch.object(opener, "open") as follow:
         if error:
@@ -145,6 +147,8 @@ def test_first_party_308_dispatch_applies_redirect_policy(location, error):
             assert dispatch() is follow.return_value
             follow.assert_called_once()
             assert follow.call_args.args[0].full_url == "https://example.com/terms"
+            response.close.assert_called_once_with()
+        response.read.assert_not_called()
 
 
 def test_http_tunnel_rejected():
@@ -245,3 +249,28 @@ def test_controlled_fetch_uses_safe_opener_with_first_party_handler():
     assert isinstance(factory.call_args.args[0], _FirstPartyRedirectHandler)
     assert result["text"] == "<p>Public policy</p>"
     assert result["truncated"] is False
+
+
+@pytest.mark.parametrize("code", [301, 302, 303, 307, 308])
+@pytest.mark.parametrize("loop", [False, True])
+def test_public_redirect_never_drains_intermediate_body(code, loop):
+    opener = safe.build_public_opener()
+    request = urllib.request.Request("https://example.com/privacy")
+    request.timeout = 5
+    headers = Message()
+    headers["Location"] = "/terms"
+    response = Mock()
+    if loop:
+        request.redirect_dict = {"https://example.com/terms": 4}
+    with patch.object(opener, "open") as follow:
+        if loop:
+            with pytest.raises(urllib.error.HTTPError):
+                opener.error("https", request, response, code, "Redirect", headers)
+            follow.assert_not_called()
+        else:
+            assert opener.error("https", request, response, code, "Redirect", headers) is follow.return_value
+            response.close.assert_called_once_with()
+            follow.assert_called_once()
+            assert follow.call_args.args[0].full_url == "https://example.com/terms"
+            assert follow.call_args.kwargs["timeout"] == 5
+        response.read.assert_not_called()
