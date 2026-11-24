@@ -11,6 +11,8 @@ import http.client
 import ipaddress
 import socket
 import ssl
+import string
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -143,7 +145,38 @@ class _PublicHTTPSHandler(urllib.request.HTTPSHandler):
 
 
 class _PublicRedirectHandler(urllib.request.HTTPRedirectHandler):
-    http_error_308 = urllib.request.HTTPRedirectHandler.http_error_302
+    def http_error_302(self, req, fp, code, msg, headers):
+        # Preserve urllib redirect semantics, but never drain the intermediate body.
+        if "location" in headers:
+            newurl = headers["location"]
+        elif "uri" in headers:
+            newurl = headers["uri"]
+        else:
+            return None
+        parts = urllib.parse.urlparse(newurl)
+        if parts.scheme not in ("http", "https", "ftp", ""):
+            raise urllib.error.HTTPError(newurl, code, msg, headers, fp)
+        if not parts.path and parts.netloc:
+            parts = parts._replace(path="/")
+        newurl = urllib.parse.quote(
+            urllib.parse.urlunparse(parts), encoding="iso-8859-1", safe=string.punctuation
+        )
+        newurl = urllib.parse.urljoin(req.full_url, newurl)
+        new = self.redirect_request(req, fp, code, msg, headers, newurl)
+        if new is None:
+            return None
+        if hasattr(req, "redirect_dict"):
+            visited = new.redirect_dict = req.redirect_dict
+            if (visited.get(newurl, 0) >= self.max_repeats
+                    or len(visited) >= self.max_redirections):
+                raise urllib.error.HTTPError(req.full_url, code, self.inf_msg + msg, headers, fp)
+        else:
+            visited = new.redirect_dict = req.redirect_dict = {}
+        visited[newurl] = visited.get(newurl, 0) + 1
+        fp.close()
+        return self.parent.open(new, timeout=req.timeout)
+
+    http_error_301 = http_error_303 = http_error_307 = http_error_308 = http_error_302
 
     def redirect_request(self, request, fp, code, msg, headers, newurl):
         validate_public_url(urllib.parse.urljoin(request.full_url, newurl))
