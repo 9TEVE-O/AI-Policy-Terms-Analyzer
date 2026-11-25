@@ -1,6 +1,10 @@
 """Tests for the bounded URL-only controlled policy-analysis workflow."""
 
 import urllib.request
+from email.message import Message
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 from controlled_policy_analysis import (
     ControlledPolicyAnalyzer,
@@ -227,3 +231,105 @@ def test_invalid_homepage_scheme_is_rejected():
         assert False, "Expected ValueError for non-http homepage"
     except ValueError:
         pass
+
+
+INELIGIBLE_MEDIA = [
+    ("application/octet-stream", "unsupported_content_type"),
+    ("image/png", "unsupported_content_type"),
+    ("text/htmlx", "unsupported_content_type"),
+    ("text/html, image/png", "unsupported_content_type"),
+    ("", "missing_content_type"),
+    ("application/pdf", "remote_pdf_not_supported_in_controlled_v0.1"),
+]
+
+
+def _mock_response(content_type):
+    response = MagicMock()
+    response.__enter__.return_value = response
+    response.geturl.return_value = "https://example.com/privacy"
+    response.headers = Message()
+    if content_type:
+        response.headers["Content-Type"] = content_type
+    response.read.return_value = b"Privacy Policy. We use AWS."
+    opener = Mock()
+    opener.open.return_value = response
+    return response, opener
+
+
+@pytest.mark.parametrize("content_type,reason", INELIGIBLE_MEDIA)
+def test_ineligible_controlled_fetch_does_not_read_body(content_type, reason):
+    response, opener = _mock_response(content_type)
+    controlled = ControlledPolicyAnalyzer()
+    with patch("controlled_policy_analysis.build_public_opener", return_value=opener):
+        result = controlled._fetch_first_party_resource(
+            "https://example.com/privacy", "https://example.com"
+        )
+    assert result["content_type"] == content_type
+    assert result["text"] == ""
+    response.read.assert_not_called()
+
+
+@pytest.mark.parametrize("content_type,reason", INELIGIBLE_MEDIA)
+def test_ineligible_policy_never_invokes_analyzer(content_type, reason):
+    fetcher = FakeResourceFetcher({
+        "https://example.com": {"text": '<a href="/privacy">Privacy Policy</a>'},
+        "https://example.com/privacy": {
+            "text": "Privacy Policy. We use AWS.",
+            "content_type": content_type,
+        },
+    })
+    analyzer = Mock()
+    scanner = Mock(wraps=DocumentScanner())
+    result = ControlledPolicyAnalyzer(
+        scanner=scanner, analyzer=analyzer, resource_fetcher=fetcher
+    ).analyze_site("https://example.com")
+    document = result["documents"][0]
+    assert document["status"] == "not_analysed"
+    assert document["reason"] == reason
+    assert document["analysis"] is None
+    scanner.scan_html_content.assert_not_called()
+    analyzer.analyze.assert_not_called()
+
+
+@pytest.mark.parametrize("content_type,reason", INELIGIBLE_MEDIA)
+def test_ineligible_homepage_stops_before_discovery(content_type, reason):
+    fetcher = FakeResourceFetcher({
+        "https://example.com": {
+            "text": '<a href="/privacy">Privacy Policy</a>',
+            "content_type": content_type,
+        },
+    })
+    analyzer = Mock()
+    controlled = ControlledPolicyAnalyzer(analyzer=analyzer, resource_fetcher=fetcher)
+    with patch("controlled_policy_analysis.discover_policy_links") as discover:
+        with pytest.raises(ValueError, match=reason):
+            controlled.analyze_site("https://example.com")
+    discover.assert_not_called()
+    analyzer.analyze.assert_not_called()
+    assert len(fetcher.calls) == 1
+
+
+@pytest.mark.parametrize("content_type", [
+    "text/html", "TEXT/PLAIN; charset=utf-8", "application/xhtml+xml",
+])
+def test_eligible_media_preserves_fetch_and_analysis(content_type):
+    response, opener = _mock_response(content_type)
+    controlled = ControlledPolicyAnalyzer()
+    with patch("controlled_policy_analysis.build_public_opener", return_value=opener):
+        result = controlled._fetch_first_party_resource(
+            "https://example.com/privacy", "https://example.com"
+        )
+    assert result["text"] == "Privacy Policy. We use AWS."
+    response.read.assert_called_once_with(controlled.scanner._MAX_URL_BYTES + 1)
+
+    fetcher = FakeResourceFetcher({
+        "https://example.com": {"text": '<a href="/privacy">Privacy Policy</a>'},
+        "https://example.com/privacy": {
+            "text": result["text"], "content_type": content_type,
+        },
+    })
+    analyzer = Mock()
+    controlled = ControlledPolicyAnalyzer(analyzer=analyzer, resource_fetcher=fetcher)
+    document = controlled.analyze_site("https://example.com")["documents"][0]
+    assert document["status"] == "analysed"
+    analyzer.analyze.assert_called_once()

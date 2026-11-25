@@ -334,6 +334,18 @@ def discover_policy_links(homepage_url: str, homepage_html: str) -> Dict:
     }
 
 
+def _content_rejection_reason(content_type: str, final_url: str) -> Optional[str]:
+    """Require an explicit supported media type before discovery or analysis."""
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    if media_type == "application/pdf" or urlparse(final_url).path.lower().endswith(".pdf"):
+        return "remote_pdf_not_supported_in_controlled_v0.1"
+    if not content_type.strip():
+        return "missing_content_type"
+    if media_type not in ("text/html", "text/plain", "application/xhtml+xml"):
+        return "unsupported_content_type"
+    return None
+
+
 class ControlledPolicyAnalyzer:
     """Run bounded first-party policy discovery and existing extraction."""
 
@@ -366,7 +378,7 @@ class ControlledPolicyAnalyzer:
                 )
 
             content_type = response.headers.get("Content-Type", "")
-            if "application/pdf" in content_type.lower():
+            if _content_rejection_reason(content_type, final_url):
                 return {
                     "requested_url": url,
                     "final_url": final_url,
@@ -405,6 +417,9 @@ class ControlledPolicyAnalyzer:
             requested_homepage,
         )
         final_homepage = homepage_resource["final_url"]
+        rejection = _content_rejection_reason(homepage_resource["content_type"], final_homepage)
+        if rejection:
+            raise ValueError(f"Homepage content not eligible: {rejection}")
         discovery = discover_policy_links(
             final_homepage,
             homepage_resource["text"],
@@ -441,13 +456,12 @@ class ControlledPolicyAnalyzer:
             document["content_type"] = resource["content_type"]
             document["truncated"] = resource["truncated"]
 
-            path_is_pdf = urlparse(resource["final_url"]).path.lower().endswith(".pdf")
-            type_is_pdf = "application/pdf" in resource["content_type"].lower()
-            if path_is_pdf or type_is_pdf:
+            rejection = _content_rejection_reason(resource["content_type"], resource["final_url"])
+            if rejection:
                 document.update(
                     {
                         "status": "not_analysed",
-                        "reason": "remote_pdf_not_supported_in_controlled_v0.1",
+                        "reason": rejection,
                         "analysis": None,
                     }
                 )

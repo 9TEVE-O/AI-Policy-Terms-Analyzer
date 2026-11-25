@@ -86,6 +86,13 @@ been fetched successfully.
   non-standard ports are rejected; separate network-level egress controls remain necessary;
 - no login/session workflows;
 - remote PDF policy links are reported but not analysed;
+- controlled retrieval requires an explicit media type of `text/html`, `text/plain`,
+  or `application/xhtml+xml` (case-insensitive base media type, parameters ignored
+  for eligibility). Missing and unsupported/malformed base media types are rejected
+  without reading the body. Ineligible policy documents retain their source URL and
+  reported content type with `not_analysed` and an explicit reason; ineligible
+  homepages stop before discovery with a `ValueError`;
+- media eligibility does not establish content authenticity or semantic accuracy;
 - fetched policy documents exceeding the byte cap are marked `not_analysed`
   with reason `document_truncated`, rather than treated as completed analyses;
 - no determination that a discovered document is current, applicable,
