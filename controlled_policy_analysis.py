@@ -391,7 +391,10 @@ class ControlledPolicyAnalyzer:
             truncated = len(raw) > self.scanner._MAX_URL_BYTES
             raw = raw[: self.scanner._MAX_URL_BYTES]
             charset = response.headers.get_content_charset() or "utf-8"
-            text = raw.decode(charset, errors="replace")
+            try:
+                text = raw.decode(charset, errors="replace")
+            except LookupError as exc:
+                raise ValueError("Unsupported remote character encoding") from exc
 
         return {
             "requested_url": url,

@@ -216,7 +216,10 @@ class DocumentScanner:
             if len(raw) > self._MAX_URL_BYTES:
                 raise ValueError("Remote document exceeds the byte limit")
             encoding = resp.headers.get_content_charset() or 'utf-8'
-        return raw.decode(encoding, errors='replace')
+        try:
+            return raw.decode(encoding, errors='replace')
+        except LookupError as exc:
+            raise ValueError("Unsupported remote character encoding") from exc
 
     def _clean_text(self, text: str) -> str:
         """Normalise whitespace without destroying paragraph boundaries."""
