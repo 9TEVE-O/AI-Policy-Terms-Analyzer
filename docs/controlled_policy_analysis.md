@@ -93,6 +93,12 @@ been fetched successfully.
   reported content type with `not_analysed` and an explicit reason; ineligible
   homepages stop before discovery with a `ValueError`;
 - media eligibility does not establish content authenticity or semantic accuracy;
+- unknown or non-text declared character encodings raise `ValueError` with an
+  explicit unsupported-encoding reason in both remote fetch paths. A controlled
+  homepage encoding failure stops the run; a policy encoding failure is recorded
+  as `fetch_failed` and the remaining candidates can proceed. No alternate charset
+  is guessed. The existing UTF-8 default for an absent charset and replacement
+  of malformed byte sequences for recognized codecs are unchanged;
 - a homepage exceeding the configured byte cap stops before link discovery with
   a `ValueError` containing `homepage_truncated`; no partial discovery result or
   missing-category list is emitted. This matches the ineligible-homepage error

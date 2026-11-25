@@ -274,3 +274,81 @@ def test_public_redirect_never_drains_intermediate_body(code, loop):
             assert follow.call_args.args[0].full_url == "https://example.com/terms"
             assert follow.call_args.kwargs["timeout"] == 5
         response.read.assert_not_called()
+
+
+@pytest.mark.parametrize("charset", ["x-no-such-encoding", "base64_codec"])
+@pytest.mark.parametrize("path", ["scanner", "controlled"])
+def test_unsupported_remote_charset_has_explicit_failure(charset, path):
+    response = StubResponse(b"Policy text", f"text/html; charset={charset}")
+    opener = Mock()
+    opener.open.return_value = response
+    module = "document_scanner" if path == "scanner" else "controlled_policy_analysis"
+    with patch(f"{module}.build_public_opener", return_value=opener):
+        with pytest.raises(ValueError, match="Unsupported remote character encoding") as exc:
+            if path == "scanner":
+                DocumentScanner()._fetch_url("https://example.com/privacy")
+            else:
+                ControlledPolicyAnalyzer()._fetch_first_party_resource(
+                    "https://example.com/privacy", "https://example.com"
+                )
+    assert isinstance(exc.value.__cause__, LookupError)
+
+
+@pytest.mark.parametrize("content_type,raw,expected", [
+    ("text/html; charset=utf-8", b"caf\xc3\xa9", "café"),
+    ("text/html; charset=iso-8859-1", b"caf\xe9", "café"),
+    ("text/html", b"caf\xc3\xa9", "café"),
+    ("text/html; charset=utf-8", b"bad\xff", "bad\ufffd"),
+])
+def test_supported_charset_and_legacy_replacement_are_preserved(content_type, raw, expected):
+    opener = Mock()
+    opener.open.return_value = StubResponse(raw, content_type)
+    with patch("document_scanner.build_public_opener", return_value=opener):
+        assert DocumentScanner()._fetch_url("https://example.com/privacy") == expected
+    with patch("controlled_policy_analysis.build_public_opener", return_value=opener):
+        result = ControlledPolicyAnalyzer()._fetch_first_party_resource(
+            "https://example.com/privacy", "https://example.com"
+        )
+    assert result["text"] == expected
+    assert result["truncated"] is False
+
+
+def test_unknown_homepage_charset_stops_before_discovery():
+    opener = Mock()
+    opener.open.return_value = StubResponse(
+        b'<a href="/privacy">Privacy Policy</a>',
+        "text/html; charset=x-no-such-encoding",
+        url="https://example.com",
+    )
+    analyzer = Mock()
+    with patch("controlled_policy_analysis.build_public_opener", return_value=opener), patch(
+        "controlled_policy_analysis.discover_policy_links"
+    ) as discover:
+        with pytest.raises(ValueError, match="Unsupported remote character encoding"):
+            ControlledPolicyAnalyzer(analyzer=analyzer).analyze_site("https://example.com")
+    discover.assert_not_called()
+    analyzer.analyze.assert_not_called()
+    assert opener.open.call_count == 1
+
+
+def test_unknown_policy_charset_is_fetch_failure_and_next_policy_continues():
+    opener = Mock()
+    opener.open.side_effect = [
+        StubResponse(
+            b'<a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a>',
+            url="https://example.com",
+        ),
+        StubResponse(b"Privacy Policy", "text/html; charset=x-no-such-encoding"),
+        StubResponse(b"Terms of Service", url="https://example.com/terms"),
+    ]
+    analyzer = Mock()
+    analyzer.analyze.return_value = {"example": True}
+    with patch("controlled_policy_analysis.build_public_opener", return_value=opener):
+        result = ControlledPolicyAnalyzer(analyzer=analyzer).analyze_site("https://example.com")
+    privacy, terms = result["documents"]
+    assert privacy["status"] == "fetch_failed"
+    assert privacy["reason"] == "ValueError: Unsupported remote character encoding"
+    assert privacy["analysis"] is None
+    assert terms["status"] == "analysed"
+    analyzer.analyze.assert_called_once()
+    assert opener.open.call_count == 3
