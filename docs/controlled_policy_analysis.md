@@ -93,6 +93,10 @@ been fetched successfully.
   reported content type with `not_analysed` and an explicit reason; ineligible
   homepages stop before discovery with a `ValueError`;
 - media eligibility does not establish content authenticity or semantic accuracy;
+- a homepage exceeding the configured byte cap stops before link discovery with
+  a `ValueError` containing `homepage_truncated`; no partial discovery result or
+  missing-category list is emitted. This matches the ineligible-homepage error
+  contract. A non-truncated homepage still supports only bounded one-hop discovery;
 - fetched policy documents exceeding the byte cap are marked `not_analysed`
   with reason `document_truncated`, rather than treated as completed analyses;
 - no determination that a discovered document is current, applicable,

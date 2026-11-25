@@ -333,3 +333,59 @@ def test_eligible_media_preserves_fetch_and_analysis(content_type):
     document = controlled.analyze_site("https://example.com")["documents"][0]
     assert document["status"] == "analysed"
     analyzer.analyze.assert_called_once()
+
+
+@pytest.mark.parametrize("homepage", [
+    '<a href="/privacy">Privacy Policy</a>',
+    "<html><body>",
+])
+def test_truncated_homepage_stops_before_discovery(homepage):
+    fetcher = FakeResourceFetcher({
+        "https://example.com": {"text": homepage, "truncated": True},
+        "https://example.com/privacy": {"text": "Privacy Policy. We use AWS."},
+    })
+    analyzer = Mock()
+    controlled = ControlledPolicyAnalyzer(analyzer=analyzer, resource_fetcher=fetcher)
+    with patch("controlled_policy_analysis.discover_policy_links") as discover:
+        with pytest.raises(ValueError, match="homepage_truncated"):
+            controlled.analyze_site("https://example.com")
+    discover.assert_not_called()
+    analyzer.analyze.assert_not_called()
+    assert fetcher.calls == [("https://example.com", "https://example.com")]
+
+
+@pytest.mark.parametrize("homepage,expected", [
+    ('<a href="/privacy">Privacy Policy</a>', 1),
+    ("<html></html>", 0),
+])
+def test_complete_homepage_preserves_bounded_discovery(homepage, expected):
+    fetcher = FakeResourceFetcher({
+        "https://example.com": {"text": homepage, "truncated": False},
+        "https://example.com/privacy": {"text": "Privacy Policy. We use AWS."},
+    })
+    analyzer = Mock()
+    result = ControlledPolicyAnalyzer(
+        analyzer=analyzer, resource_fetcher=fetcher,
+    ).analyze_site("https://example.com")
+    assert result["homepage_truncated"] is False
+    assert result["documents_discovered"] == expected
+    assert len(result["documents"]) == expected
+    assert ("privacy" in result["categories_found"]) == bool(expected)
+    assert ("privacy" in result["categories_not_found"]) != bool(expected)
+    assert analyzer.analyze.call_count == expected
+    assert len(fetcher.calls) == expected + 1
+
+
+def test_ineligible_truncated_homepage_preserves_media_rejection():
+    fetcher = FakeResourceFetcher({
+        "https://example.com": {
+            "text": "", "content_type": "application/pdf", "truncated": True,
+        },
+    })
+    with patch("controlled_policy_analysis.discover_policy_links") as discover:
+        with pytest.raises(ValueError, match="remote_pdf_not_supported"):
+            ControlledPolicyAnalyzer(resource_fetcher=fetcher).analyze_site(
+                "https://example.com"
+            )
+    discover.assert_not_called()
+    assert len(fetcher.calls) == 1

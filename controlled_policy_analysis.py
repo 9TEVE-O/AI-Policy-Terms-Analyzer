@@ -420,6 +420,8 @@ class ControlledPolicyAnalyzer:
         rejection = _content_rejection_reason(homepage_resource["content_type"], final_homepage)
         if rejection:
             raise ValueError(f"Homepage content not eligible: {rejection}")
+        if homepage_resource["truncated"]:
+            raise ValueError("Homepage discovery incomplete: homepage_truncated")
         discovery = discover_policy_links(
             final_homepage,
             homepage_resource["text"],
