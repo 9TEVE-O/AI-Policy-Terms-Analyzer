@@ -1,6 +1,11 @@
 """Tests for the bounded URL-only controlled policy-analysis workflow."""
 
+import json
 import urllib.request
+from datetime import datetime, timezone
+from hashlib import sha256
+from http.client import HTTPResponse, IncompleteRead
+from io import BytesIO
 from email.message import Message
 from unittest.mock import MagicMock, Mock, patch
 
@@ -9,7 +14,9 @@ import pytest
 from controlled_policy_analysis import (
     ControlledPolicyAnalyzer,
     _FirstPartyRedirectHandler,
+    _body_provenance,
     discover_policy_links,
+    main,
 )
 from document_scanner import DocumentScanner
 
@@ -389,3 +396,222 @@ def test_ineligible_truncated_homepage_preserves_media_rejection():
             )
     discover.assert_not_called()
     assert len(fetcher.calls) == 1
+
+
+class _WireSocket:
+    def __init__(self, wire):
+        self.wire = wire
+
+    def makefile(self, *args, **kwargs):
+        return BytesIO(self.wire)
+
+
+def _wire_response(headers, body, status=200):
+    wire = (
+        b"HTTP/1.1 " + str(status).encode("ascii") + b" Test\r\n"
+        + headers + b"\r\n" + body
+    )
+    response = HTTPResponse(_WireSocket(wire))
+    response.begin()
+    return response
+
+
+_CHUNKED = b"3\r\nabc\r\n0\r\n\r\n"
+
+
+@pytest.mark.parametrize(
+    "headers,body,cap,status,eligible",
+    [
+        (b"Content-Length: 3\r\n", b"abc", 3, 200, True),
+        (b"Content-Length: 0003\r\n", b"abc", 3, 200, True),
+        (b"", b"abc", 3, 200, True),
+        (b"Content-Length: 0\r\n", b"", 3, 200, True),
+        (b"Content-Length: 4\r\n", b"abc", 8, 200, False),
+        (b"Content-Length: 3\r\n", b"abc", 2, 200, False),
+        (b"Transfer-Encoding: chunked\r\n", _CHUNKED, 3, 200, True),
+        (b"Transfer-Encoding: Chunked\r\n", _CHUNKED, 3, 200, True),
+        (b"Transfer-Encoding: chunked\r\nContent-Length: 3\r\n", _CHUNKED, 8, 200, False),
+        (b"Transfer-Encoding: chunked\r\nTransfer-Encoding: chunked\r\n", _CHUNKED, 8, 200, False),
+        (b"Transfer-Encoding: gzip, chunked\r\n", _CHUNKED, 30, 200, False),
+        (b"Transfer-Encoding:\r\n", b"abc", 8, 200, False),
+        (b"Content-Length: 3\r\nContent-Length: 3\r\n", b"abc", 8, 200, False),
+        (b"Content-Length: +3\r\n", b"abc", 8, 200, False),
+        (b"Content-Length: invalid\r\n", b"abc", 8, 200, False),
+        (b"Content-Length: " + b"9" * 5000 + b"\r\n", b"abc", 8, 200, False),
+        (b"Content-Range: bytes 0-2/5\r\nContent-Length: 3\r\n", b"abc", 8, 200, False),
+        (b"Content-Length: 3\r\n", b"abc", 8, 206, False),
+        (b"Content-Length: 3\r\n", b"abcd", 8, 200, True),
+    ],
+)
+def test_body_provenance_real_reader(headers, body, cap, status, eligible):
+    with _wire_response(headers, body, status) as response:
+        raw = response.read(cap + 1)
+        result = _body_provenance(response, raw, len(raw) > cap)
+    assert bool(result) is eligible
+    if eligible:
+        provenance = result["source_provenance"]
+        assert provenance["body_sha256"] == sha256(raw).hexdigest()
+        assert provenance["body_bytes"] == len(raw)
+        assert datetime.fromisoformat(provenance["retrieved_at_utc"]).utcoffset().total_seconds() == 0
+
+
+@pytest.mark.parametrize("payload,charset", [
+    (b"Privacy Policy. Cafe.", "utf-8"),
+    (b"Privacy Policy. Caf\xc3\xa9.", "utf-8"),
+    (b"Privacy Policy. Caf\xe9.", "iso-8859-1"),
+    (b"Privacy Policy. Caf\xff.", "utf-8"),
+])
+def test_fingerprint_precedes_character_decoding(payload, charset):
+    response, opener = _mock_response("text/plain; charset=" + charset)
+    response.status = 200
+    response.read.return_value = payload
+    response.headers["Content-Length"] = str(len(payload))
+    fixed = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    with patch("controlled_policy_analysis.build_public_opener", return_value=opener):
+        with patch("controlled_policy_analysis.datetime") as clock:
+            clock.now.return_value = fixed
+            resource = ControlledPolicyAnalyzer()._fetch_first_party_resource(
+                "https://example.com/privacy", "https://example.com"
+            )
+    assert resource["text"] == payload.decode(charset, errors="replace")
+    assert resource["source_provenance"] == {
+        "body_sha256": sha256(payload).hexdigest(),
+        "body_bytes": len(payload),
+        "retrieved_at_utc": fixed.isoformat(),
+    }
+
+
+@pytest.mark.parametrize("headers,body,cap,truncated,eligible", [
+    (b"Content-Length: 3\r\n", b"abc", 3, False, True),
+    (b"Content-Length: 0003\r\n", b"abc", 3, False, True),
+    (b"Content-Length: 0\r\n", b"", 3, False, True),
+    (b"Content-Length: 100\r\n", b"abc", 2, True, False),
+    (b"Transfer-Encoding: chunked\r\n", _CHUNKED, 3, False, True),
+    (b"Transfer-Encoding: chunked\r\nContent-Length: 100\r\n", _CHUNKED, 3, False, False),
+    (b"Content-Length: 3\r\nContent-Length: 100\r\n", b"abc", 3, False, False),
+    (b"Content-Length: invalid\r\n", b"abc", 3, False, False),
+    (b"", b"abc", 3, False, True),
+], ids=["exact-cap", "leading-zero", "empty", "capped", "chunked",
+        "transfer-precedence", "ambiguous-length", "invalid-length", "eof"])
+def test_fetch_preserves_complete_capped_and_ambiguous_reads(
+    headers, body, cap, truncated, eligible,
+):
+    response, opener = _mock_response("text/plain")
+    response.status = 200
+    scanner = DocumentScanner()
+    scanner._MAX_URL_BYTES = cap
+    with _wire_response(headers, body) as wire:
+        response.headers = wire.headers
+        response.headers["Content-Type"] = "text/plain"
+        response.chunked = wire.chunked
+        response.read.side_effect = wire.read
+        with patch("controlled_policy_analysis.build_public_opener", return_value=opener):
+            resource = ControlledPolicyAnalyzer(scanner=scanner)._fetch_first_party_resource(
+                "https://example.com/privacy", "https://example.com"
+            )
+    assert resource["text"] == (b"abc" if body else b"")[:cap].decode()
+    assert resource["truncated"] is truncated
+    assert ("source_provenance" in resource) is eligible
+    if eligible:
+        assert resource["source_provenance"]["body_sha256"] == sha256(resource["text"].encode()).hexdigest()
+    response.read.assert_called_once_with(cap + 1)
+
+
+def test_default_fetcher_provenance_and_cli_json(capsys):
+    homepage, opener = _mock_response("text/html")
+    homepage.geturl.return_value = "https://example.com"
+    homepage.status = 200
+    homepage.read.return_value = b'<a href="/privacy">Privacy Policy</a>'
+    policy, _ = _mock_response("text/plain; charset=iso-8859-1")
+    policy.status = 200
+    payload = b"Privacy Policy. We use AWS. Caf\xe9."
+    policy.read.return_value = payload
+    opener.open.side_effect = [homepage, policy]
+    with patch("controlled_policy_analysis.build_public_opener", return_value=opener):
+        with patch("sys.argv", ["controlled_policy_analysis.py", "https://example.com"]):
+            main()
+    result = json.loads(capsys.readouterr().out)
+    document = result["documents"][0]
+    assert document["status"] == "analysed"
+    assert document["source_provenance"]["body_sha256"] == sha256(payload).hexdigest()
+    assert "source_provenance" not in result
+    assert document["analysis"]["company_name"] == "example.com"
+
+
+class _EqualitySpoofingFetcher(FakeResourceFetcher):
+    def __eq__(self, other):
+        return True
+
+    def __call__(self, url, boundary_url):
+        resource = super().__call__(url, boundary_url)
+        resource["source_provenance"] = {"body_sha256": "not trusted"}
+        return resource
+
+
+def test_injected_equal_fetcher_cannot_supply_provenance():
+    fetcher = _EqualitySpoofingFetcher()
+    controlled = ControlledPolicyAnalyzer(resource_fetcher=fetcher)
+    assert fetcher == controlled._fetch_first_party_resource
+    assert fetcher is not controlled._default_resource_fetcher
+    for document in controlled.analyze_site("https://example.com")["documents"]:
+        assert document["status"] == "analysed"
+        assert "source_provenance" not in document
+
+
+@pytest.mark.parametrize("headers,body", [
+    (b"Transfer-Encoding: chunked\r\n", b"3\r\nabc\r\n"),
+    (b"Content-Length: 100\r\n", b"Privacy Policy. We use AWS."),
+    (b"Content-Length: 000100\r\n", b"Privacy Policy. We use AWS."),
+    (b"Content-Length: 1\r\n", b""),
+    (b"Content-Length: " + b"9" * 5000 + b"\r\n", b"Privacy Policy."),
+], ids=["chunked", "short", "leading-zero", "empty", "huge-length"])
+def test_incomplete_policy_read_continues_to_next_candidate(headers, body):
+    homepage, opener = _mock_response("text/html")
+    homepage.geturl.return_value = "https://example.com"
+    homepage.read.return_value = (
+        b'<a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a>'
+    )
+    bad, _ = _mock_response("text/plain")
+    good, _ = _mock_response("text/plain")
+    good.geturl.return_value = "https://example.com/terms"
+    good.status = 200
+    analyzer = Mock()
+    analyzer.analyze.return_value = {"company_name": "example.com"}
+    with _wire_response(headers, body) as wire:
+        bad.headers = wire.headers
+        bad.headers["Content-Type"] = "text/plain"
+        bad.read.side_effect = wire.read
+        opener.open.side_effect = [homepage, bad, good]
+        with patch("controlled_policy_analysis.build_public_opener", return_value=opener):
+            documents = ControlledPolicyAnalyzer(analyzer=analyzer).analyze_site("https://example.com")["documents"]
+    assert documents[0]["status"] == "fetch_failed"
+    assert "Incomplete remote response body" in documents[0]["reason"]
+    assert documents[0]["analysis"] is None
+    assert "source_provenance" not in documents[0]
+    assert documents[1]["status"] == "analysed"
+    assert "source_provenance" in documents[1]
+    analyzer.analyze.assert_called_once_with(good.read.return_value.decode(), "example.com")
+
+
+@pytest.mark.parametrize("headers,body", [
+    (b"Transfer-Encoding: chunked\r\n", b"3\r\nabc\r\n"),
+    (b"Content-Length: 100\r\n", b'<a href="/privacy">Privacy Policy</a>'),
+], ids=["chunked", "short"])
+def test_incomplete_homepage_read_has_no_json_output(capsys, headers, body):
+    homepage, opener = _mock_response("text/html")
+    homepage.geturl.return_value = "https://example.com"
+    homepage.status = 200
+    with _wire_response(headers, body) as wire:
+        homepage.headers = wire.headers
+        homepage.headers["Content-Type"] = "text/html"
+        homepage.read.side_effect = wire.read
+        with patch("controlled_policy_analysis.build_public_opener", return_value=opener):
+            with patch("sys.argv", ["controlled_policy_analysis.py", "https://example.com"]):
+                with patch("controlled_policy_analysis.discover_policy_links", wraps=discover_policy_links) as discover:
+                    with pytest.raises(ValueError, match="Incomplete remote response body") as exc:
+                        main()
+    if headers.startswith(b"Transfer-Encoding"):
+        assert isinstance(exc.value.__cause__, IncompleteRead)
+    discover.assert_not_called()
+    assert opener.open.call_count == 1
+    assert capsys.readouterr().out == ""

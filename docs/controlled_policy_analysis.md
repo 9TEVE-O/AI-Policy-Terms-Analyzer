@@ -75,6 +75,30 @@ Each selected document retains:
 The existing `PolicyAnalyzer` result is attached only after visible text has
 been fetched successfully.
 
+Analysed documents may include optional `source_provenance`: `body_sha256`
+hashes the exact body bytes returned by the built-in HTTP reader before
+character decoding or HTML cleanup; `body_bytes` counts those bytes;
+`retrieved_at_utc` is the local UTC clock reading after the body was read.
+These are observed bytes, not wire framing or extracted text.
+
+The field is omitted for injected fetchers, non-200 or ranged responses,
+reads over the byte cap, invalid/duplicate/mismatched Content-Length,
+conflicting Transfer-Encoding and Content-Length, and unsupported or
+duplicate Transfer-Encoding. A single chunked transfer is eligible only
+when the HTTP reader recognised and decoded it. A response without length
+or transfer encoding can be fingerprinted at EOF. IncompleteRead becomes
+an explicit fetch error (homepage stops; policy fetch_failed continues).
+A read that does not exceed the byte cap but falls short of a single valid
+Content-Length, without Transfer-Encoding, is also a fetch error before
+decoding or analysis.
+
+The standard HTTP reader may tolerate malformed chunk framing or return
+only the declared length when extra bytes follow. Neither a successful
+read nor EOF proves strict wire integrity or publisher completeness.
+Other provenance omissions do not change analysis eligibility; this metadata
+does not attest authenticity, decoding fidelity or legal completeness.
+Supporting passages are outside this slice.
+
 ## Explicit v0.1 limits
 
 - one-hop discovery from the supplied homepage only;
