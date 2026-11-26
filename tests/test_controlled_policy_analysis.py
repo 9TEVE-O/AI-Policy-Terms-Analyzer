@@ -481,6 +481,42 @@ def test_fingerprint_precedes_character_decoding(payload, charset):
     }
 
 
+@pytest.mark.parametrize("headers,body,cap,truncated,eligible", [
+    (b"Content-Length: 3\r\n", b"abc", 3, False, True),
+    (b"Content-Length: 0003\r\n", b"abc", 3, False, True),
+    (b"Content-Length: 0\r\n", b"", 3, False, True),
+    (b"Content-Length: 100\r\n", b"abc", 2, True, False),
+    (b"Transfer-Encoding: chunked\r\n", _CHUNKED, 3, False, True),
+    (b"Transfer-Encoding: chunked\r\nContent-Length: 100\r\n", _CHUNKED, 3, False, False),
+    (b"Content-Length: 3\r\nContent-Length: 100\r\n", b"abc", 3, False, False),
+    (b"Content-Length: invalid\r\n", b"abc", 3, False, False),
+    (b"", b"abc", 3, False, True),
+], ids=["exact-cap", "leading-zero", "empty", "capped", "chunked",
+        "transfer-precedence", "ambiguous-length", "invalid-length", "eof"])
+def test_fetch_preserves_complete_capped_and_ambiguous_reads(
+    headers, body, cap, truncated, eligible,
+):
+    response, opener = _mock_response("text/plain")
+    response.status = 200
+    scanner = DocumentScanner()
+    scanner._MAX_URL_BYTES = cap
+    with _wire_response(headers, body) as wire:
+        response.headers = wire.headers
+        response.headers["Content-Type"] = "text/plain"
+        response.chunked = wire.chunked
+        response.read.side_effect = wire.read
+        with patch("controlled_policy_analysis.build_public_opener", return_value=opener):
+            resource = ControlledPolicyAnalyzer(scanner=scanner)._fetch_first_party_resource(
+                "https://example.com/privacy", "https://example.com"
+            )
+    assert resource["text"] == (b"abc" if body else b"")[:cap].decode()
+    assert resource["truncated"] is truncated
+    assert ("source_provenance" in resource) is eligible
+    if eligible:
+        assert resource["source_provenance"]["body_sha256"] == sha256(resource["text"].encode()).hexdigest()
+    response.read.assert_called_once_with(cap + 1)
+
+
 def test_default_fetcher_provenance_and_cli_json(capsys):
     homepage, opener = _mock_response("text/html")
     homepage.geturl.return_value = "https://example.com"
@@ -522,7 +558,14 @@ def test_injected_equal_fetcher_cannot_supply_provenance():
         assert "source_provenance" not in document
 
 
-def test_incomplete_policy_read_continues_to_next_candidate():
+@pytest.mark.parametrize("headers,body", [
+    (b"Transfer-Encoding: chunked\r\n", b"3\r\nabc\r\n"),
+    (b"Content-Length: 100\r\n", b"Privacy Policy. We use AWS."),
+    (b"Content-Length: 000100\r\n", b"Privacy Policy. We use AWS."),
+    (b"Content-Length: 1\r\n", b""),
+    (b"Content-Length: " + b"9" * 5000 + b"\r\n", b"Privacy Policy."),
+], ids=["chunked", "short", "leading-zero", "empty", "huge-length"])
+def test_incomplete_policy_read_continues_to_next_candidate(headers, body):
     homepage, opener = _mock_response("text/html")
     homepage.geturl.return_value = "https://example.com"
     homepage.read.return_value = (
@@ -532,26 +575,43 @@ def test_incomplete_policy_read_continues_to_next_candidate():
     good, _ = _mock_response("text/plain")
     good.geturl.return_value = "https://example.com/terms"
     good.status = 200
-    with _wire_response(b"Transfer-Encoding: chunked\r\n", b"3\r\nabc\r\n") as wire:
+    analyzer = Mock()
+    analyzer.analyze.return_value = {"company_name": "example.com"}
+    with _wire_response(headers, body) as wire:
+        bad.headers = wire.headers
+        bad.headers["Content-Type"] = "text/plain"
         bad.read.side_effect = wire.read
         opener.open.side_effect = [homepage, bad, good]
         with patch("controlled_policy_analysis.build_public_opener", return_value=opener):
-            documents = ControlledPolicyAnalyzer().analyze_site("https://example.com")["documents"]
+            documents = ControlledPolicyAnalyzer(analyzer=analyzer).analyze_site("https://example.com")["documents"]
     assert documents[0]["status"] == "fetch_failed"
     assert "Incomplete remote response body" in documents[0]["reason"]
+    assert documents[0]["analysis"] is None
     assert "source_provenance" not in documents[0]
     assert documents[1]["status"] == "analysed"
     assert "source_provenance" in documents[1]
+    analyzer.analyze.assert_called_once_with(good.read.return_value.decode(), "example.com")
 
 
-def test_incomplete_homepage_read_has_no_json_output(capsys):
+@pytest.mark.parametrize("headers,body", [
+    (b"Transfer-Encoding: chunked\r\n", b"3\r\nabc\r\n"),
+    (b"Content-Length: 100\r\n", b'<a href="/privacy">Privacy Policy</a>'),
+], ids=["chunked", "short"])
+def test_incomplete_homepage_read_has_no_json_output(capsys, headers, body):
     homepage, opener = _mock_response("text/html")
     homepage.geturl.return_value = "https://example.com"
-    with _wire_response(b"Transfer-Encoding: chunked\r\n", b"3\r\nabc\r\n") as wire:
+    homepage.status = 200
+    with _wire_response(headers, body) as wire:
+        homepage.headers = wire.headers
+        homepage.headers["Content-Type"] = "text/html"
         homepage.read.side_effect = wire.read
         with patch("controlled_policy_analysis.build_public_opener", return_value=opener):
             with patch("sys.argv", ["controlled_policy_analysis.py", "https://example.com"]):
-                with pytest.raises(ValueError, match="Incomplete remote response body") as exc:
-                    main()
-    assert isinstance(exc.value.__cause__, IncompleteRead)
+                with patch("controlled_policy_analysis.discover_policy_links", wraps=discover_policy_links) as discover:
+                    with pytest.raises(ValueError, match="Incomplete remote response body") as exc:
+                        main()
+    if headers.startswith(b"Transfer-Encoding"):
+        assert isinstance(exc.value.__cause__, IncompleteRead)
+    discover.assert_not_called()
+    assert opener.open.call_count == 1
     assert capsys.readouterr().out == ""

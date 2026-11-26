@@ -88,13 +88,16 @@ duplicate Transfer-Encoding. A single chunked transfer is eligible only
 when the HTTP reader recognised and decoded it. A response without length
 or transfer encoding can be fingerprinted at EOF. IncompleteRead becomes
 an explicit fetch error (homepage stops; policy fetch_failed continues).
+A read that does not exceed the byte cap but falls short of a single valid
+Content-Length, without Transfer-Encoding, is also a fetch error before
+decoding or analysis.
 
 The standard HTTP reader may tolerate malformed chunk framing or return
 only the declared length when extra bytes follow. Neither a successful
 read nor EOF proves strict wire integrity or publisher completeness.
-Omitting provenance does not change existing analysis eligibility; this
-metadata does not attest authenticity, decoding fidelity or legal
-completeness. Supporting passages are outside this slice.
+Other provenance omissions do not change analysis eligibility; this metadata
+does not attest authenticity, decoding fidelity or legal completeness.
+Supporting passages are outside this slice.
 
 ## Explicit v0.1 limits
 

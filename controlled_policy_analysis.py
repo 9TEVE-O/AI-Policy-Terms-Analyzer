@@ -434,6 +434,20 @@ class ControlledPolicyAnalyzer:
             except IncompleteRead as exc:
                 raise ValueError("Incomplete remote response body") from exc
             truncated = len(raw) > self.scanner._MAX_URL_BYTES
+            # A bounded HTTPResponse.read(n) can return early at EOF without
+            # raising IncompleteRead for a fixed-length body. Transfer coding
+            # takes precedence over Content-Length; capped reads are not EOF.
+            if not truncated and not response.headers.get_all("Transfer-Encoding", []):
+                lengths = response.headers.get_all("Content-Length", [])
+                if len(lengths) == 1:
+                    declared = lengths[0].strip(" \t")
+                    if declared.isascii() and declared.isdecimal():
+                        declared = declared.lstrip("0") or "0"
+                        observed = str(len(raw))
+                        # Compare decimal strings without converting an
+                        # untrusted, potentially enormous integer.
+                        if (len(observed), observed) < (len(declared), declared):
+                            raise ValueError("Incomplete remote response body")
             provenance = _body_provenance(response, raw, truncated)
             raw = raw[: self.scanner._MAX_URL_BYTES]
             charset = response.headers.get_content_charset() or "utf-8"
