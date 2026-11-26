@@ -16,6 +16,9 @@ import argparse
 import json
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
+from hashlib import sha256
+from http.client import IncompleteRead
 from html.parser import HTMLParser
 from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urldefrag, urljoin, urlparse, urlunparse
@@ -346,6 +349,44 @@ def _content_rejection_reason(content_type: str, final_url: str) -> Optional[str
     return None
 
 
+def _body_provenance(response, raw: bytes, truncated: bool) -> Dict:
+    """Fingerprint the observed body, not decoded text or partial responses."""
+    if (
+        truncated
+        or getattr(response, "status", None) != 200
+        or "Content-Range" in response.headers
+    ):
+        return {}
+
+    encodings = response.headers.get_all("Transfer-Encoding", [])
+    lengths = response.headers.get_all("Content-Length", [])
+    if encodings:
+        if (
+            lengths
+            or len(encodings) != 1
+            or encodings[0].strip(" \t").lower() != "chunked"
+            or response.chunked is not True
+        ):
+            return {}
+    if lengths:
+        declared = lengths[0].strip(" \t")
+        if (
+            len(lengths) != 1
+            or not declared.isascii()
+            or not declared.isdecimal()
+            or (declared.lstrip("0") or "0") != str(len(raw))
+        ):
+            return {}
+
+    return {
+        "source_provenance": {
+            "body_sha256": sha256(raw).hexdigest(),
+            "body_bytes": len(raw),
+            "retrieved_at_utc": datetime.now(timezone.utc).isoformat(),
+        },
+    }
+
+
 class ControlledPolicyAnalyzer:
     """Run bounded first-party policy discovery and existing extraction."""
 
@@ -357,7 +398,8 @@ class ControlledPolicyAnalyzer:
     ) -> None:
         self.scanner = scanner or DocumentScanner()
         self.analyzer = analyzer or PolicyAnalyzer()
-        self.resource_fetcher = resource_fetcher or self._fetch_first_party_resource
+        self._default_resource_fetcher = self._fetch_first_party_resource
+        self.resource_fetcher = resource_fetcher or self._default_resource_fetcher
 
     def _fetch_first_party_resource(self, url: str, boundary_url: str) -> Dict:
         """Fetch one resource while blocking redirects outside the site boundary."""
@@ -387,8 +429,12 @@ class ControlledPolicyAnalyzer:
                     "truncated": False,
                 }
 
-            raw = response.read(self.scanner._MAX_URL_BYTES + 1)
+            try:
+                raw = response.read(self.scanner._MAX_URL_BYTES + 1)
+            except IncompleteRead as exc:
+                raise ValueError("Incomplete remote response body") from exc
             truncated = len(raw) > self.scanner._MAX_URL_BYTES
+            provenance = _body_provenance(response, raw, truncated)
             raw = raw[: self.scanner._MAX_URL_BYTES]
             charset = response.headers.get_content_charset() or "utf-8"
             try:
@@ -402,6 +448,7 @@ class ControlledPolicyAnalyzer:
             "content_type": content_type,
             "text": text,
             "truncated": truncated,
+            **provenance,
         }
 
     def analyze_site(self, homepage_url: str, max_documents: int = 8) -> Dict:
@@ -443,8 +490,9 @@ class ControlledPolicyAnalyzer:
                 "discovered_from": candidate["discovered_from"],
             }
 
+            fetcher = self.resource_fetcher
             try:
-                resource = self.resource_fetcher(candidate["url"], final_homepage)
+                resource = fetcher(candidate["url"], final_homepage)
             except (ValueError, urllib.error.URLError, OSError) as exc:
                 document.update(
                     {
@@ -495,6 +543,12 @@ class ControlledPolicyAnalyzer:
                 )
                 documents.append(document)
                 continue
+
+            if (
+                fetcher is self._default_resource_fetcher
+                and "source_provenance" in resource
+            ):
+                document["source_provenance"] = resource["source_provenance"]
 
             document.update(
                 {
