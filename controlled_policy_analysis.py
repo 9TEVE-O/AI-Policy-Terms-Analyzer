@@ -564,11 +564,32 @@ class ControlledPolicyAnalyzer:
             ):
                 document["source_provenance"] = resource["source_provenance"]
 
+            analysis = self.analyzer.analyze(text, site_host)
+            if isinstance(self.analyzer, PolicyAnalyzer):
+                passage_result = self.analyzer.extract_privacy_concern_passages(
+                    text, analysis.get("privacy_concerns", {})
+                )
+            else:
+                passage_result = {
+                    "text_basis": "visible_text_supplied_to_analyzer",
+                    "passages": [],
+                    "unmatched_concerns": [],
+                    "omitted_occurrences": 0,
+                    "coverage": "unavailable_for_injected_analyzer",
+                    "other_analysis_fields": "not_mapped",
+                }
+            passage_result["source_url"] = resource["final_url"]
+            if "source_provenance" in document:
+                passage_result["source_body_sha256"] = document["source_provenance"]["body_sha256"]
+            else:
+                passage_result["source_body_sha256"] = None
+
             document.update(
                 {
                     "status": "analysed",
                     "reason": None,
-                    "analysis": self.analyzer.analyze(text, site_host),
+                    "analysis": analysis,
+                    "privacy_concern_passages": passage_result,
                 }
             )
             documents.append(document)
