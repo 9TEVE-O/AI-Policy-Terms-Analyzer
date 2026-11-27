@@ -97,7 +97,21 @@ only the declared length when extra bytes follow. Neither a successful
 read nor EOF proves strict wire integrity or publisher completeness.
 Other provenance omissions do not change analysis eligibility; this metadata
 does not attest authenticity, decoding fidelity or legal completeness.
-Supporting passages are outside this slice.
+The provenance change alone did not include supporting passages.
+
+The next bounded slice adds `privacy_concern_passages` to each analysed
+document. It maps only `analysis.privacy_concerns` to short exact excerpts and
+character offsets in the **visible text supplied to PolicyAnalyzer**, after
+decoding and HTML cleanup. Each passage includes the final source URL and
+optionally the observed-body SHA-256 when eligible provenance was recorded.
+Offsets do not refer to raw HTML or original response bytes. For custom
+fetchers without a fingerprint, the source hash is null. A custom analyser
+without the passage method reports `unavailable_for_injected_analyzer`.
+At most three rule matches per concern are shown; `omitted_occurrences`
+and `coverage` expose this bound and any unmatched descriptions. Other
+analysis fields remain `not_mapped`. Every match is a candidate requiring
+human review: a passage may be negated, historical or about a third party,
+and the detector's severity is not a verified risk judgement.
 
 ## Explicit v0.1 limits
 

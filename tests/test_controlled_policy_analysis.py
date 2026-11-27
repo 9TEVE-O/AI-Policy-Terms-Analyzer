@@ -124,6 +124,64 @@ def test_analyze_site_runs_existing_analyzer_with_provenance():
     assert "https://vendor.example.net/privacy" not in fetched_urls
 
 
+def test_privacy_concern_passages_preserve_negation_history_and_offsets():
+    policy = (
+        "<p>We do not sell your personal information.</p>"
+        "<p>An older policy said we sell your personal information.</p>"
+        "<p>A third party may sell your personal information.</p>"
+    )
+    fetcher = FakeResourceFetcher({
+        "https://example.com": {
+            "text": '<a href="/privacy">Privacy Policy</a>',
+            "content_type": "text/html",
+        },
+        "https://example.com/privacy": {
+            "text": policy, "content_type": "text/html",
+        },
+    })
+    document = ControlledPolicyAnalyzer(resource_fetcher=fetcher).analyze_site(
+        "https://example.com"
+    )["documents"][0]
+    evidence = document["privacy_concern_passages"]
+    assert document["analysis"]["privacy_concerns"]["high"]
+    assert evidence["coverage"] == "all_rule_matches"
+    assert evidence["other_analysis_fields"] == "not_mapped"
+    assert evidence["source_url"] == "https://example.com/privacy"
+    assert evidence["source_body_sha256"] is None
+    assert len(evidence["passages"]) == 3
+    visible = DocumentScanner().scan_html_content(policy)
+    for passage in evidence["passages"]:
+        assert visible[passage["excerpt_start"]:passage["excerpt_end"]] == passage["excerpt"]
+        assert visible[passage["match_start"]:passage["match_end"]].lower().startswith("sell your")
+        assert passage["review_status"] == "human_review_required"
+    assert "do not sell" in evidence["passages"][0]["excerpt"]
+    assert "older policy" in evidence["passages"][1]["excerpt"]
+    assert "third party" in evidence["passages"][2]["excerpt"]
+
+
+def test_privacy_passage_limit_is_explicit_and_not_complete_coverage():
+    from policy_analyzer import PolicyAnalyzer
+
+    analyzer = PolicyAnalyzer()
+    text = " ".join(["We sell your personal information."] * 4)
+    result = analyzer.extract_privacy_concern_passages(
+        text, analyzer.detect_privacy_concerns(text)
+    )
+    assert len(result["passages"]) == 3
+    assert result["omitted_occurrences"] == 1
+    assert result["coverage"] == "bounded"
+
+
+def test_injected_analyzer_marks_passage_coverage_unavailable():
+    analyzer = Mock()
+    analyzer.analyze.return_value = {"privacy_concerns": {"high": ["example"]}}
+    document = ControlledPolicyAnalyzer(
+        analyzer=analyzer, resource_fetcher=FakeResourceFetcher()
+    ).analyze_site("https://example.com")["documents"][0]
+    assert document["privacy_concern_passages"]["coverage"] == "unavailable_for_injected_analyzer"
+    assert document["privacy_concern_passages"]["passages"] == []
+
+
 def test_www_homepage_uses_boundary_host_for_analysis_identity():
     homepage = '<a href="/privacy">Privacy Policy</a>'
     fetcher = FakeResourceFetcher(
@@ -185,6 +243,7 @@ def test_truncated_policy_is_not_presented_as_completed_analysis():
     assert document["status"] == "not_analysed"
     assert document["reason"] == "document_truncated"
     assert document["analysis"] is None
+    assert "privacy_concern_passages" not in document
 
 
 def test_remote_pdf_is_reported_without_text_analysis():
@@ -534,6 +593,10 @@ def test_default_fetcher_provenance_and_cli_json(capsys):
     document = result["documents"][0]
     assert document["status"] == "analysed"
     assert document["source_provenance"]["body_sha256"] == sha256(payload).hexdigest()
+    assert (
+        document["privacy_concern_passages"]["source_body_sha256"]
+        == document["source_provenance"]["body_sha256"]
+    )
     assert "source_provenance" not in result
     assert document["analysis"]["company_name"] == "example.com"
 
@@ -556,6 +619,7 @@ def test_injected_equal_fetcher_cannot_supply_provenance():
     for document in controlled.analyze_site("https://example.com")["documents"]:
         assert document["status"] == "analysed"
         assert "source_provenance" not in document
+        assert document["privacy_concern_passages"]["source_body_sha256"] is None
 
 
 @pytest.mark.parametrize("headers,body", [

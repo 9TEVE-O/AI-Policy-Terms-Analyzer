@@ -544,6 +544,56 @@ class PolicyAnalyzer:
                     bucket.append(description)
         return concerns
 
+    def extract_privacy_concern_passages(
+        self, text: str, concerns: Dict[str, List[str]]
+    ) -> Dict:
+        """Locate rule matches in the exact visible text supplied to analyze().
+
+        A pattern hit is only a candidate. Surrounding language can negate it,
+        quote an older policy, or attribute it to another party.
+        """
+        passages = []
+        unmatched = []
+        omitted_occurrences = 0
+        for severity, descriptions in concerns.items():
+            for description in descriptions:
+                patterns = [
+                    pattern for pattern, label, level in self._concern_patterns
+                    if label == description and level == severity
+                ]
+                matches = [
+                    match for pattern in patterns for match in pattern.finditer(text)
+                ]
+                if not matches:
+                    unmatched.append({"severity": severity, "description": description})
+                    continue
+                matches.sort(key=lambda match: match.start())
+                omitted_occurrences += max(0, len(matches) - 3)
+                for match in matches[:3]:
+                    start = max(0, match.start() - 160)
+                    end = min(len(text), match.end() + 160)
+                    passages.append({
+                        "severity": severity,
+                        "description": description,
+                        "match_start": match.start(),
+                        "match_end": match.end(),
+                        "excerpt_start": start,
+                        "excerpt_end": end,
+                        "excerpt": text[start:end],
+                        "review_status": "human_review_required",
+                    })
+        return {
+            "text_basis": "visible_text_supplied_to_analyzer",
+            "passages": passages,
+            "unmatched_concerns": unmatched,
+            "omitted_occurrences": omitted_occurrences,
+            "coverage": (
+                "incomplete" if unmatched else
+                "bounded" if omitted_occurrences else "all_rule_matches"
+            ),
+            "other_analysis_fields": "not_mapped",
+        }
+
     def detect_data_destinations(self, text: str) -> Dict[str, List[str]]:
         """
         Extract specific data destinations — where user data is shared or sent.
