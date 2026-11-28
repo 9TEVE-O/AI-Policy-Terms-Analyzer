@@ -594,6 +594,64 @@ class PolicyAnalyzer:
             "other_analysis_fields": "not_mapped",
         }
 
+    def extract_data_destination_passages(self, text: str, destinations: Dict) -> Dict:
+        """Trace extracted recipients and purposes to visible-text rule matches.
+
+        These are candidates, not proof of current sharing or data transfer.
+        Offsets index the decoded, cleaned text supplied to analyze(), not bytes.
+        """
+        passages = []
+        unmatched = []
+        omitted_occurrences = 0
+        for recipient in destinations.get("recipients", []):
+            matches = [
+                match for pattern in self._sharing_res
+                for match in pattern.finditer(text)
+                if match.lastindex and match.group(1).strip() == recipient
+            ]
+            matches.sort(key=lambda match: (match.start(), match.end()))
+            if not matches:
+                unmatched.append({"kind": "recipient", "label": recipient})
+            omitted_occurrences += max(0, len(matches) - 3)
+            for match in matches[:3]:
+                start, end = max(0, match.start() - 160), min(len(text), match.end() + 160)
+                passages.append({
+                    "kind": "recipient", "label": recipient,
+                    "match_start": match.start(), "match_end": match.end(),
+                    "excerpt_start": start, "excerpt_end": end,
+                    "excerpt": text[start:end],
+                    "review_status": "human_review_required",
+                })
+        for purpose in destinations.get("purposes", []):
+            matches = [
+                match for pattern, label in self._purpose_res if label == purpose
+                for match in pattern.finditer(text)
+            ]
+            matches.sort(key=lambda match: (match.start(), match.end()))
+            if not matches:
+                unmatched.append({"kind": "purpose", "label": purpose})
+            omitted_occurrences += max(0, len(matches) - 3)
+            for match in matches[:3]:
+                start, end = max(0, match.start() - 160), min(len(text), match.end() + 160)
+                passages.append({
+                    "kind": "purpose", "label": purpose,
+                    "match_start": match.start(), "match_end": match.end(),
+                    "excerpt_start": start, "excerpt_end": end,
+                    "excerpt": text[start:end],
+                    "review_status": "human_review_required",
+                })
+        return {
+            "text_basis": "visible_text_supplied_to_analyzer",
+            "passages": passages,
+            "unmatched_findings": unmatched,
+            "omitted_occurrences": omitted_occurrences,
+            "coverage": (
+                "incomplete" if unmatched else
+                "bounded" if omitted_occurrences else "all_rule_matches"
+            ),
+            "other_analysis_fields": "not_mapped",
+        }
+
     def detect_data_destinations(self, text: str) -> Dict[str, List[str]]:
         """
         Extract specific data destinations — where user data is shared or sent.
