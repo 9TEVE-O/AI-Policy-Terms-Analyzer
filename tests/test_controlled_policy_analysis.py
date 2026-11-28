@@ -124,6 +124,84 @@ def test_analyze_site_runs_existing_analyzer_with_provenance():
     assert "https://vendor.example.net/privacy" not in fetched_urls
 
 
+def test_data_destination_passages_preserve_visible_text_and_source_identity():
+    policy = (
+        "<p>We do not share personal information with analytics providers.</p>"
+        "<p>An older policy said we share personal information with analytics providers.</p>"
+    )
+    fetcher = FakeResourceFetcher({
+        "https://example.com": {
+            "text": '<a href="/privacy">Privacy Policy</a>',
+            "content_type": "text/html",
+        },
+        "https://example.com/privacy": {
+            "text": policy,
+            "content_type": "text/html",
+        },
+    })
+    document = ControlledPolicyAnalyzer(resource_fetcher=fetcher).analyze_site(
+        "https://example.com"
+    )["documents"][0]
+    evidence = document["data_destination_passages"]
+    visible = DocumentScanner().scan_html_content(policy)
+    assert document["status"] == "analysed"
+    assert evidence["source_url"] == "https://example.com/privacy"
+    assert evidence["source_body_sha256"] is None
+    assert evidence["text_basis"] == "visible_text_supplied_to_analyzer"
+    assert evidence["coverage"] == "all_rule_matches"
+    recipients = [p for p in evidence["passages"] if p["kind"] == "recipient"]
+    assert len(recipients) == 2
+    purposes = [p for p in evidence["passages"] if p["kind"] == "purpose"]
+    assert len(purposes) == 2
+    for passage in purposes:
+        assert passage["label"] == "Usage analytics and telemetry"
+        assert visible[passage["match_start"]:passage["match_end"]].lower() == "analytics"
+        assert visible[passage["excerpt_start"]:passage["excerpt_end"]] == passage["excerpt"]
+    for passage in recipients:
+        assert passage["label"] == "analytics providers"
+        assert visible[passage["excerpt_start"]:passage["excerpt_end"]] == passage["excerpt"]
+        assert "share personal information with analytics providers" in (
+            visible[passage["match_start"]:passage["match_end"]]
+        )
+        assert passage["review_status"] == "human_review_required"
+    assert "do not share" in recipients[0]["excerpt"]
+    assert "older policy" in recipients[1]["excerpt"]
+
+
+def test_data_destination_passages_bound_occurrences_and_report_missing():
+    from policy_analyzer import PolicyAnalyzer
+
+    analyzer = PolicyAnalyzer()
+    text = " ".join(["We share personal information with analytics providers."] * 4)
+    destinations = analyzer.detect_data_destinations(text)
+    evidence = analyzer.extract_data_destination_passages(text, destinations)
+    recipients = [p for p in evidence["passages"] if p["kind"] == "recipient"]
+    assert len(recipients) == 3
+    assert evidence["omitted_occurrences"] >= 1
+    assert evidence["coverage"] == "bounded"
+
+    altered = analyzer.extract_data_destination_passages(
+        text, {"recipients": ["fabricated recipient"], "purposes": []}
+    )
+    assert altered["passages"] == []
+    assert altered["coverage"] == "incomplete"
+    assert altered["unmatched_findings"] == [
+        {"kind": "recipient", "label": "fabricated recipient"}
+    ]
+
+
+def test_data_destination_passages_unavailable_for_injected_analyzer():
+    analyzer = Mock()
+    analyzer.analyze.return_value = {"data_destinations": {"recipients": ["invented"]}}
+    result = ControlledPolicyAnalyzer(
+        analyzer=analyzer, resource_fetcher=FakeResourceFetcher()
+    ).analyze_site("https://example.com")
+    assert result["documents"][0]["data_destination_passages"]["coverage"] == (
+        "unavailable_for_injected_analyzer"
+    )
+    assert result["documents"][0]["data_destination_passages"]["passages"] == []
+
+
 def test_privacy_concern_passages_preserve_negation_history_and_offsets():
     policy = (
         "<p>We do not sell your personal information.</p>"
@@ -244,6 +322,7 @@ def test_truncated_policy_is_not_presented_as_completed_analysis():
     assert document["reason"] == "document_truncated"
     assert document["analysis"] is None
     assert "privacy_concern_passages" not in document
+    assert "data_destination_passages" not in document
 
 
 def test_remote_pdf_is_reported_without_text_analysis():

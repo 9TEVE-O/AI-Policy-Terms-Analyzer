@@ -578,6 +578,25 @@ class ControlledPolicyAnalyzer:
                     "coverage": "unavailable_for_injected_analyzer",
                     "other_analysis_fields": "not_mapped",
                 }
+            if isinstance(self.analyzer, PolicyAnalyzer):
+                destination_result = self.analyzer.extract_data_destination_passages(
+                    text, analysis.get("data_destinations", {})
+                )
+            else:
+                destination_result = {
+                    "text_basis": "visible_text_supplied_to_analyzer",
+                    "passages": [],
+                    "unmatched_findings": [],
+                    "omitted_occurrences": 0,
+                    "coverage": "unavailable_for_injected_analyzer",
+                    "other_analysis_fields": "not_mapped",
+                }
+            destination_result["source_url"] = resource["final_url"]
+            destination_result["source_body_sha256"] = (
+                document["source_provenance"]["body_sha256"]
+                if "source_provenance" in document else None
+            )
+
             passage_result["source_url"] = resource["final_url"]
             if "source_provenance" in document:
                 passage_result["source_body_sha256"] = document["source_provenance"]["body_sha256"]
@@ -590,6 +609,7 @@ class ControlledPolicyAnalyzer:
                     "reason": None,
                     "analysis": analysis,
                     "privacy_concern_passages": passage_result,
+                    "data_destination_passages": destination_result,
                 }
             )
             documents.append(document)
