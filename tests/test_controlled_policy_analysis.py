@@ -151,6 +151,12 @@ def test_data_destination_passages_preserve_visible_text_and_source_identity():
     assert evidence["coverage"] == "all_rule_matches"
     recipients = [p for p in evidence["passages"] if p["kind"] == "recipient"]
     assert len(recipients) == 2
+    purposes = [p for p in evidence["passages"] if p["kind"] == "purpose"]
+    assert len(purposes) == 2
+    for passage in purposes:
+        assert passage["label"] == "Usage analytics and telemetry"
+        assert visible[passage["match_start"]:passage["match_end"]].lower() == "analytics"
+        assert visible[passage["excerpt_start"]:passage["excerpt_end"]] == passage["excerpt"]
     for passage in recipients:
         assert passage["label"] == "analytics providers"
         assert visible[passage["excerpt_start"]:passage["excerpt_end"]] == passage["excerpt"]
@@ -184,7 +190,7 @@ def test_data_destination_passages_bound_occurrences_and_report_missing():
     ]
 
 
-def test_data_destination_passages_not_exposed_on_injected_or_truncated_analysis():
+def test_data_destination_passages_unavailable_for_injected_analyzer():
     analyzer = Mock()
     analyzer.analyze.return_value = {"data_destinations": {"recipients": ["invented"]}}
     result = ControlledPolicyAnalyzer(
@@ -316,6 +322,7 @@ def test_truncated_policy_is_not_presented_as_completed_analysis():
     assert document["reason"] == "document_truncated"
     assert document["analysis"] is None
     assert "privacy_concern_passages" not in document
+    assert "data_destination_passages" not in document
 
 
 def test_remote_pdf_is_reported_without_text_analysis():
